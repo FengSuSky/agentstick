@@ -101,11 +101,24 @@ scripts/          固件资源处理、打包、DMG/MSI、appcast 更新脚本
 
 固件使用 ESP-IDF。当前本地验证环境为 ESP-IDF 5.5.x。
 
+默认固件配置面向立创·实战派 ESP32-S3 开发板：
+
 ```sh
 cd firmware
 . /Users/fengsu/esp/esp-idf/export.sh
 idf.py set-target esp32s3
 idf.py build
+```
+
+如果要构建 M5Stack StickS3 固件，建议使用独立 build 目录和 M5Stack defaults，避免覆盖立创板构建产物：
+
+```sh
+cd firmware
+. /Users/fengsu/esp/esp-idf/export.sh
+idf.py -B build-m5stack \
+  -D SDKCONFIG=build-m5stack/sdkconfig \
+  -D SDKCONFIG_DEFAULTS='sdkconfig.defaults;sdkconfig.defaults.m5stack' \
+  build
 ```
 
 烧录并打开串口监视：
@@ -195,5 +208,5 @@ AgentStick 目前直接参考并继承 VoiceStick 的工程结构和大量基础
 1. 把 Codex / Claude Code 任务下发链路接进 macOS 桌面端。
 2. 设计 Agent 任务状态机：queued、running、done、failed、needs input。
 3. 增加桌面通知和设备屏幕状态回写。
-4. 把立创 ESP32-S3 适配整理成显式 board target。
+4. 继续完善立创 ESP32-S3 和 M5Stack StickS3 的板型抽象。
 5. 逐步把配置路径、App 名称和 UI 文案从 VoiceStick 迁移到 AgentStick。

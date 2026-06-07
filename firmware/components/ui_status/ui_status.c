@@ -26,6 +26,7 @@
 
 static const char *TAG = "ui_status";
 
+#if CONFIG_VOICESTICK_BOARD_LICHUANG_ESP32S3
 #define LCD_HOST SPI3_HOST
 
 #define LCD_H_RES 320
@@ -44,6 +45,28 @@ static const char *TAG = "ui_status";
 #define LCD_BACKLIGHT_PWM_HZ 5000
 #define LCD_BACKLIGHT_PWM_MAX 1023
 #define LCD_BACKLIGHT_DEFAULT 255
+#define LCD_SPI_MODE 2
+#else
+#define LCD_HOST SPI2_HOST
+
+#define LCD_H_RES 135
+#define LCD_V_RES 240
+#define LCD_X_GAP 52
+#define LCD_Y_GAP 40
+#define LCD_SWAP_XY false
+#define LCD_MIRROR_X false
+#define LCD_MIRROR_Y false
+#define LCD_BACKLIGHT_INVERT false
+#define LCD_DIAGNOSTIC_ONLY false
+
+#define LCD_PIXEL_CLOCK_HZ (20 * 1000 * 1000)
+#define LCD_CMD_BITS 8
+#define LCD_PARAM_BITS 8
+#define LCD_BACKLIGHT_PWM_HZ 5000
+#define LCD_BACKLIGHT_PWM_MAX 255
+#define LCD_BACKLIGHT_DEFAULT 128
+#define LCD_SPI_MODE 0
+#endif
 
 #define LVGL_DRAW_BUF_LINES 24
 #define LVGL_TICK_PERIOD_MS 10
@@ -262,6 +285,7 @@ static void create_status_ui(void)
     render_current_locked();
 }
 
+#if LCD_DIAGNOSTIC_ONLY
 static void draw_lcd_test_bands(esp_lcd_panel_handle_t panel)
 {
     const uint16_t colors[] = {0xf800, 0x07e0, 0x001f, 0xffff};
@@ -323,6 +347,7 @@ static void lcd_diagnostic_task(void *arg)
         vTaskDelay(pdMS_TO_TICKS(1000));
     }
 }
+#endif
 
 static void set_scene(ui_status_icon_scene_t scene, const char *status, const char *hint)
 {
@@ -341,7 +366,8 @@ esp_err_t ui_status_init(void)
         .duty_resolution = LEDC_TIMER_10_BIT,
         .timer_num = LCD_BACKLIGHT_LEDC_TIMER,
         .freq_hz = LCD_BACKLIGHT_PWM_HZ,
-        .clk_cfg = LEDC_AUTO_CLK,
+        // RC_FAST clock remains active during light sleep on M5Stack StickS3.
+        .clk_cfg = STICK_S3_BOARD_IS_LICHUANG ? LEDC_AUTO_CLK : LEDC_USE_RC_FAST_CLK,
     };
     ESP_RETURN_ON_ERROR(ledc_timer_config(&backlight_timer), TAG, "configure backlight timer");
 
@@ -376,7 +402,7 @@ esp_err_t ui_status_init(void)
         .pclk_hz = LCD_PIXEL_CLOCK_HZ,
         .lcd_cmd_bits = LCD_CMD_BITS,
         .lcd_param_bits = LCD_PARAM_BITS,
-        .spi_mode = 2,
+        .spi_mode = LCD_SPI_MODE,
         .trans_queue_depth = 10,
     };
     ESP_RETURN_ON_ERROR(esp_lcd_new_panel_io_spi((esp_lcd_spi_bus_handle_t)LCD_HOST,
@@ -392,7 +418,9 @@ esp_err_t ui_status_init(void)
     ESP_RETURN_ON_ERROR(esp_lcd_new_panel_st7789(io, &panel_config, &panel),
                         TAG, "create st7789 panel");
     ESP_RETURN_ON_ERROR(esp_lcd_panel_reset(panel), TAG, "reset panel");
+#if STICK_S3_BOARD_HAS_PCA9557
     ESP_RETURN_ON_ERROR(stick_s3_board_lcd_select(true), TAG, "select lcd");
+#endif
     ESP_RETURN_ON_ERROR(esp_lcd_panel_init(panel), TAG, "init panel");
     ESP_RETURN_ON_ERROR(esp_lcd_panel_invert_color(panel, true), TAG, "invert panel colors");
     ESP_RETURN_ON_ERROR(esp_lcd_panel_swap_xy(panel, LCD_SWAP_XY), TAG, "swap panel xy");
@@ -400,10 +428,10 @@ esp_err_t ui_status_init(void)
                         TAG, "mirror panel");
     ESP_RETURN_ON_ERROR(esp_lcd_panel_set_gap(panel, LCD_X_GAP, LCD_Y_GAP), TAG, "set panel gap");
     ESP_RETURN_ON_ERROR(esp_lcd_panel_disp_on_off(panel, true), TAG, "turn display on");
+#if LCD_DIAGNOSTIC_ONLY
     draw_lcd_test_bands(panel);
 
     ESP_RETURN_ON_ERROR(ui_status_set_brightness(UINT8_MAX), TAG, "set diagnostic backlight");
-#if LCD_DIAGNOSTIC_ONLY
     BaseType_t diagnostic_ok = xTaskCreate(lcd_diagnostic_task, "lcd_diag", 4096,
                                            panel, LVGL_TASK_PRIORITY, NULL);
     ESP_RETURN_ON_FALSE(diagnostic_ok == pdPASS, ESP_ERR_NO_MEM,
@@ -432,9 +460,10 @@ esp_err_t ui_status_init(void)
     ESP_RETURN_ON_ERROR(esp_lcd_panel_io_register_event_callbacks(io, &callbacks, s_display),
                         TAG, "register lcd callbacks");
 
-    ESP_RETURN_ON_ERROR(ui_status_set_brightness(UINT8_MAX), TAG, "set diagnostic backlight");
+#if LCD_DIAGNOSTIC_ONLY
     draw_lcd_test_bands(panel);
     vTaskDelay(pdMS_TO_TICKS(2000));
+#endif
 
     const esp_timer_create_args_t tick_timer_args = {
         .callback = lvgl_tick_cb,
@@ -454,7 +483,7 @@ esp_err_t ui_status_init(void)
                                      NULL, LVGL_TASK_PRIORITY, NULL);
     ESP_RETURN_ON_FALSE(task_ok == pdPASS, ESP_ERR_NO_MEM, TAG, "create lvgl task");
 
-    ESP_RETURN_ON_ERROR(ui_status_set_brightness(UINT8_MAX), TAG, "set backlight");
+    ESP_RETURN_ON_ERROR(ui_status_set_brightness(LCD_BACKLIGHT_DEFAULT), TAG, "set backlight");
     ESP_LOGI(TAG, "display ready");
     return ESP_OK;
 }

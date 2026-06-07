@@ -19,11 +19,13 @@
 
 相关文件：
 
+- `firmware/components/stick_s3_board/Kconfig`
 - `firmware/components/stick_s3_board/include/stick_s3_board.h`
 - `firmware/components/stick_s3_board/stick_s3_board.c`
 
 主要变化：
 
+- 新增 `VOICESTICK_BOARD_M5STACK_STICKS3` / `VOICESTICK_BOARD_LICHUANG_ESP32S3` 板型选择。
 - I2C 改为立创板连接：SDA `GPIO1`，SCL `GPIO2`。
 - 主按键改为 BOOT / 用户键：`GPIO0`，低电平按下。
 - 侧键当前未定义，`stick_s3_side_button_pressed()` 固定返回 `false`。
@@ -37,7 +39,7 @@
 - LCD 片选由 PCA9557 IO0 控制，而不是 ESP32 直连 GPIO。
 - M5PM1 PMIC 在立创板上不存在，初始化失败时按无 PMIC 处理，不再中断启动。
 
-需要注意：当前代码仍沿用 `stick_s3_board` 命名，但实际已经承载立创板适配逻辑。后续若继续支持多板型，建议把硬件差异抽成显式 board target。
+需要注意：当前代码仍沿用 `stick_s3_board` 命名，但已经通过 Kconfig 保留 M5Stack StickS3 和立创 ESP32-S3 两个板型。后续可以继续把配置拆到更独立的 board source 文件里。
 
 ### 2.2 LCD 显示
 
@@ -95,10 +97,12 @@
 相关文件：
 
 - `firmware/sdkconfig.defaults`
+- `firmware/sdkconfig.defaults.m5stack`
 
 主要变化：
 
-- Flash size 从上游默认值调整为 `16MB`，匹配 ESP32-S3-WROOM-1-N16R8。
+- 默认 `sdkconfig.defaults` 面向立创 ESP32-S3，Flash size 为 `16MB`。
+- `sdkconfig.defaults.m5stack` 提供 M5Stack StickS3 覆盖配置，Flash size 为 `8MB`。
 
 ## 3. macOS 桌面端差异
 
@@ -164,7 +168,16 @@ transform = "original"
 
 固件：
 
-- `idf.py build` 构建通过。
+- 立创默认配置 `idf.py build` 构建通过。
+- M5Stack 配置构建通过：
+
+```sh
+idf.py -B build-m5stack \
+  -D SDKCONFIG=build-m5stack/sdkconfig \
+  -D SDKCONFIG_DEFAULTS='sdkconfig.defaults;sdkconfig.defaults.m5stack' \
+  build
+```
+
 - `idf.py -p /dev/cu.usbmodem11301 flash` 烧录成功。
 - monitor 中看到：
   - I2C 使用 `sda=1`、`scl=2`
@@ -192,10 +205,10 @@ transform = "original"
 
 建议按优先级继续做这些收尾：
 
-1. 新增显式板型配置，例如 `BOARD_LICHUANG_ESP32S3`，避免把立创板逻辑长期硬编码在 `stick_s3_board` 里。
-2. 把 M5Stack StickS3 与 Lichuang ESP32-S3 的 GPIO、Codec、LCD、PMIC 差异拆成独立配置文件。
+1. 继续把 M5Stack StickS3 与 Lichuang ESP32-S3 的 GPIO、Codec、LCD、PMIC 差异拆成独立 board source 文件，减少 `#if` 分支。
+2. 给 CI 增加两个固件构建矩阵：立创 ESP32-S3 和 M5Stack StickS3。
 3. 为无侧键设备设计独立交互，尤其是最终文本确认、取消和误触处理。
 4. 给 GPIO0 加更明确的消抖或状态机保护，避免释放录音时误进入 `showPausedFinal`。
-5. 清理 LCD 调试期辅助代码，只保留必要初始化和日志。
+5. 继续清理 LCD 调试期辅助代码，只保留必要初始化和日志。
 6. 在 macOS app 中增加“粘贴失败诊断”，例如提示辅助功能权限、前台 app 是否可输入、是否启用自动回车。
 7. README 后续建议分成“用户使用说明”和“开发/移植说明”，避免硬件适配细节挤进首页。

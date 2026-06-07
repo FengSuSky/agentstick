@@ -116,12 +116,17 @@ static esp_err_t init_codec(void)
     ESP_RETURN_ON_FALSE(i2c_bus != NULL, ESP_ERR_INVALID_STATE, TAG, "i2c bus unavailable");
 
     audio_codec_i2c_cfg_t i2c_cfg = {
+#if STICK_S3_AUDIO_INPUT_ES7210
         .port = I2C_NUM_0,
         .addr = STICK_S3_ES7210_ADDR,
+#else
+        .port = I2C_NUM_1,
+        .addr = ES8311_CODEC_DEFAULT_ADDR,
+#endif
         .bus_handle = i2c_bus,
     };
     s_ctrl_if = audio_codec_new_i2c_ctrl(&i2c_cfg);
-    ESP_RETURN_ON_FALSE(s_ctrl_if != NULL, ESP_ERR_NO_MEM, TAG, "create es7210 i2c ctrl");
+    ESP_RETURN_ON_FALSE(s_ctrl_if != NULL, ESP_ERR_NO_MEM, TAG, "create codec i2c ctrl");
 
     audio_codec_i2s_cfg_t i2s_cfg = {
         .port = I2S_NUM_1,
@@ -131,6 +136,7 @@ static esp_err_t init_codec(void)
     s_data_if = audio_codec_new_i2s_data(&i2s_cfg);
     ESP_RETURN_ON_FALSE(s_data_if != NULL, ESP_ERR_NO_MEM, TAG, "create codec i2s data");
 
+#if STICK_S3_AUDIO_INPUT_ES7210
     es7210_codec_cfg_t es7210_cfg = {
         .ctrl_if = s_ctrl_if,
         .master_mode = false,
@@ -140,6 +146,29 @@ static esp_err_t init_codec(void)
     };
     s_codec_if = es7210_codec_new(&es7210_cfg);
     ESP_RETURN_ON_FALSE(s_codec_if != NULL, ESP_ERR_NO_MEM, TAG, "create es7210");
+#else
+    s_gpio_if = audio_codec_new_gpio();
+    ESP_RETURN_ON_FALSE(s_gpio_if != NULL, ESP_ERR_NO_MEM, TAG, "create codec gpio");
+
+    es8311_codec_cfg_t es8311_cfg = {
+        .ctrl_if = s_ctrl_if,
+        .gpio_if = s_gpio_if,
+        .codec_mode = ESP_CODEC_DEV_WORK_MODE_ADC,
+        .pa_pin = -1,
+        .pa_reverted = false,
+        .master_mode = false,
+        .use_mclk = true,
+        .digital_mic = false,
+        .invert_mclk = false,
+        .invert_sclk = false,
+        .hw_gain = {
+            .pa_voltage = 5.0,
+            .codec_dac_voltage = 3.3,
+        },
+    };
+    s_codec_if = es8311_codec_new(&es8311_cfg);
+    ESP_RETURN_ON_FALSE(s_codec_if != NULL, ESP_ERR_NO_MEM, TAG, "create es8311");
+#endif
 
     esp_codec_dev_cfg_t dev_cfg = {
         .dev_type = ESP_CODEC_DEV_TYPE_IN,
@@ -160,8 +189,12 @@ static esp_err_t init_codec(void)
                         ESP_FAIL, TAG, "open codec");
     ESP_RETURN_ON_FALSE(esp_codec_dev_set_in_gain(s_codec, 36.0) == ESP_CODEC_DEV_OK,
                         ESP_FAIL, TAG, "set mic gain");
+#if STICK_S3_AUDIO_INPUT_ES7210
     ESP_LOGI(TAG, "ES7210 input ready addr=0x%02x mic_mask=0x%02x sample_rate=%d",
              STICK_S3_ES7210_ADDR, STICK_S3_ES7210_MIC_SELECT, AUDIO_SAMPLE_RATE);
+#else
+    ESP_LOGI(TAG, "ES8311 input ready sample_rate=%d", AUDIO_SAMPLE_RATE);
+#endif
     return ESP_OK;
 }
 

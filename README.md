@@ -101,11 +101,24 @@ Adaptation notes:
 
 The firmware uses ESP-IDF. The currently verified local environment is ESP-IDF 5.5.x.
 
+The default firmware configuration targets the Lichuang ESP32-S3 development board:
+
 ```sh
 cd firmware
 . /Users/fengsu/esp/esp-idf/export.sh
 idf.py set-target esp32s3
 idf.py build
+```
+
+To build for M5Stack StickS3 without overwriting the Lichuang build output, use the M5Stack defaults in a separate build directory:
+
+```sh
+cd firmware
+. /Users/fengsu/esp/esp-idf/export.sh
+idf.py -B build-m5stack \
+  -D SDKCONFIG=build-m5stack/sdkconfig \
+  -D SDKCONFIG_DEFAULTS='sdkconfig.defaults;sdkconfig.defaults.m5stack' \
+  build
 ```
 
 Flash and open the serial monitor:
@@ -195,5 +208,5 @@ Near-term priorities:
 1. Connect Codex / Claude Code task dispatch into the macOS desktop app.
 2. Design an agent task state machine: queued, running, done, failed, needs input.
 3. Add desktop notifications and device screen status updates.
-4. Turn the Lichuang ESP32-S3 changes into an explicit board target.
+4. Continue hardening the board-target abstraction for Lichuang ESP32-S3 and M5Stack StickS3.
 5. Gradually migrate configuration paths, app names, and UI copy from VoiceStick to AgentStick.

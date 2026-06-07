@@ -1,16 +1,20 @@
 #pragma once
 
 #include <stdbool.h>
+#include "sdkconfig.h"
 #include "esp_err.h"
 #include "driver/i2c_master.h"
 
-/* ── Lichuang ESP32-S3 board pin mapping ──
- * Main button: BOOT/USER key = GPIO0 (active-low)
- * Side button: not available on this board (GPIO12 reused for I2S)
- * No M5PM1 PMIC on this board
+#if CONFIG_VOICESTICK_BOARD_LICHUANG_ESP32S3
+
+#define STICK_S3_BOARD_IS_LICHUANG 1
+
+/* Lichuang ESP32-S3 board pin mapping.
+ * Main button: BOOT/USER key = GPIO0 (active-low).
+ * Side button: not available on this board (GPIO12 reused for I2S).
+ * No M5PM1 PMIC on this board.
  */
 #define STICK_S3_PIN_BUTTON_FRONT 0
-/* Side button not wired; leave STICK_S3_PIN_BUTTON_SIDE undefined */
 
 #define STICK_S3_PIN_I2C_SCL 2
 #define STICK_S3_PIN_I2C_SDA 1
@@ -28,13 +32,52 @@
 #define STICK_S3_ES7210_ADDR 0x82
 #define STICK_S3_ES7210_MIC_SELECT 0x03 /* MIC1 | MIC2, ordinary I2S mode */
 
-/* LCD SPI – unchanged, already matches Lichuang board */
+/* LCD SPI. CS is controlled by PCA9557 IO0, not a direct ESP32 GPIO. */
 #define STICK_S3_PIN_LCD_MOSI 40
 #define STICK_S3_PIN_LCD_SCK  41
 #define STICK_S3_PIN_LCD_DC   39
 #define STICK_S3_PIN_LCD_CS   -1    /* PCA9557-controlled */
 #define STICK_S3_PIN_LCD_RST  -1
 #define STICK_S3_PIN_LCD_BL   42
+
+#define STICK_S3_BOARD_HAS_PMIC 0
+#define STICK_S3_BOARD_HAS_PCA9557 1
+#define STICK_S3_AUDIO_INPUT_ES7210 1
+
+#else
+
+#define STICK_S3_BOARD_IS_LICHUANG 0
+
+/* M5Stack StickS3 pin mapping. */
+#define STICK_S3_PIN_BUTTON_FRONT 11
+#define STICK_S3_PIN_BUTTON_SIDE  12
+#define STICK_S3_PIN_PMIC_IRQ     13
+
+#define STICK_S3_PIN_I2C_SCL 48
+#define STICK_S3_PIN_I2C_SDA 47
+
+#define STICK_S3_PIN_ES8311_MCLK 18
+/* Pin names follow the codec's perspective:
+ * ES8311_DIN  = codec serial data input  (DSDIN, MCU -> codec, speaker path)
+ * ES8311_DOUT = codec serial data output (ASDOUT, codec -> MCU, mic path)
+ */
+#define STICK_S3_PIN_ES8311_BCLK 17
+#define STICK_S3_PIN_ES8311_LRCK 15
+#define STICK_S3_PIN_ES8311_DIN  14
+#define STICK_S3_PIN_ES8311_DOUT 16
+
+#define STICK_S3_PIN_LCD_MOSI 39
+#define STICK_S3_PIN_LCD_SCK  40
+#define STICK_S3_PIN_LCD_DC   45
+#define STICK_S3_PIN_LCD_CS   41
+#define STICK_S3_PIN_LCD_RST  21
+#define STICK_S3_PIN_LCD_BL   38
+
+#define STICK_S3_BOARD_HAS_PMIC 1
+#define STICK_S3_BOARD_HAS_PCA9557 0
+#define STICK_S3_AUDIO_INPUT_ES7210 0
+
+#endif
 
 esp_err_t stick_s3_board_init(void);
 i2c_master_bus_handle_t stick_s3_board_i2c_bus(void);

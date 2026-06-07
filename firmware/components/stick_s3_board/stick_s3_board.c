@@ -6,8 +6,10 @@
 
 static const char *TAG = "stick_s3_board";
 static i2c_master_bus_handle_t s_i2c_bus;
-static i2c_master_dev_handle_t s_pmic_dev;    /* NULL on Lichuang board (no M5PM1) */
+static i2c_master_dev_handle_t s_pmic_dev;
+#if STICK_S3_BOARD_HAS_PCA9557
 static i2c_master_dev_handle_t s_pca9557_dev;
+#endif
 
 #define STICK_S3_I2C_FREQ_HZ 100000
 
@@ -31,12 +33,14 @@ static i2c_master_dev_handle_t s_pca9557_dev;
 #define M5PM1_REG_IRQ_MASK2 0x44
 #define M5PM1_REG_IRQ_MASK3 0x45
 
+#if STICK_S3_BOARD_HAS_PCA9557
 #define PCA9557_ADDR 0x19
 #define PCA9557_REG_OUTPUT 0x01
 #define PCA9557_REG_CONFIG 0x03
 #define PCA9557_DEFAULT_OUTPUT 0x03
 #define PCA9557_DEFAULT_CONFIG 0xf8
 #define PCA9557_LCD_CS BIT(0)
+#endif
 
 #define M5PM1_PWR_CFG_LDO_EN BIT(2)
 #define M5PM1_PWR_CFG_LED_CTRL BIT(4)
@@ -52,8 +56,6 @@ static bool read_active_low_button(gpio_num_t pin)
 {
     return gpio_get_level(pin) == 0;
 }
-
-/* ── M5PM1 helpers – all safely no-op when s_pmic_dev is NULL ── */
 
 static esp_err_t pmic_read_reg(uint8_t reg, uint8_t *value)
 {
@@ -87,8 +89,7 @@ static esp_err_t pmic_update_reg(uint8_t reg, uint8_t clear_mask, uint8_t set_ma
     return pmic_write_reg(reg, value);
 }
 
-/* ── PCA9557 helpers ── */
-
+#if STICK_S3_BOARD_HAS_PCA9557
 static esp_err_t pca9557_read_reg(uint8_t reg, uint8_t *value)
 {
     return i2c_master_transmit_receive(s_pca9557_dev, &reg, 1, value, 1, 100);
@@ -112,6 +113,7 @@ static esp_err_t pca9557_update_reg(uint8_t reg, uint8_t clear_mask, uint8_t set
     value |= set_mask;
     return pca9557_write_reg(reg, value);
 }
+#endif
 
 static esp_err_t pmic_clear_irq_reg(uint8_t reg, uint8_t *status)
 {
@@ -136,7 +138,9 @@ static esp_err_t init_i2c_on(i2c_port_t port, gpio_num_t sda, gpio_num_t scl)
         i2c_del_master_bus(s_i2c_bus);
         s_i2c_bus = NULL;
         s_pmic_dev = NULL;
+#if STICK_S3_BOARD_HAS_PCA9557
         s_pca9557_dev = NULL;
+#endif
     }
 
     const i2c_master_bus_config_t bus_config = {
@@ -153,7 +157,6 @@ static esp_err_t init_i2c_on(i2c_port_t port, gpio_num_t sda, gpio_num_t scl)
         return err;
     }
 
-    /* Try adding M5PM1 – expected to fail on Lichuang board (no PMIC at 0x6e) */
     const i2c_device_config_t dev_config = {
         .dev_addr_length = I2C_ADDR_BIT_LEN_7,
         .device_address = M5PM1_ADDR,
@@ -161,22 +164,31 @@ static esp_err_t init_i2c_on(i2c_port_t port, gpio_num_t sda, gpio_num_t scl)
     };
     err = i2c_master_bus_add_device(s_i2c_bus, &dev_config, &s_pmic_dev);
     if (err != ESP_OK) {
+#if STICK_S3_BOARD_HAS_PMIC
+        return err;
+#else
         ESP_LOGW(TAG, "M5PM1 not found at 0x%02x (expected on Lichuang board): %s",
                  M5PM1_ADDR, esp_err_to_name(err));
         s_pmic_dev = NULL;
+#endif
     }
 
-    /* PCA9557 – required for LCD CS control */
+#if STICK_S3_BOARD_HAS_PCA9557
+    /* PCA9557 is required for LCD CS control on Lichuang. */
     const i2c_device_config_t pca_config = {
         .dev_addr_length = I2C_ADDR_BIT_LEN_7,
         .device_address = PCA9557_ADDR,
         .scl_speed_hz = STICK_S3_I2C_FREQ_HZ,
     };
     return i2c_master_bus_add_device(s_i2c_bus, &pca_config, &s_pca9557_dev);
+#else
+    return ESP_OK;
+#endif
 }
 
 static esp_err_t init_i2c(void)
 {
+#if CONFIG_VOICESTICK_BOARD_LICHUANG_ESP32S3
     esp_err_t err = init_i2c_on(I2C_NUM_0, STICK_S3_PIN_I2C_SDA, STICK_S3_PIN_I2C_SCL);
     if (err != ESP_OK) {
         ESP_LOGW(TAG, "I2C port 0 sda=%d scl=%d init failed: %s",
@@ -187,12 +199,48 @@ static esp_err_t init_i2c(void)
     ESP_LOGI(TAG, "I2C initialized port 0 sda=%d scl=%d",
              STICK_S3_PIN_I2C_SDA, STICK_S3_PIN_I2C_SCL);
     return ESP_OK;
-}
+#else
+    const struct {
+        i2c_port_t port;
+        gpio_num_t sda;
+        gpio_num_t scl;
+    } candidates[] = {
+        {I2C_NUM_1, STICK_S3_PIN_I2C_SDA, STICK_S3_PIN_I2C_SCL},
+        {I2C_NUM_1, STICK_S3_PIN_I2C_SCL, STICK_S3_PIN_I2C_SDA},
+        {I2C_NUM_0, STICK_S3_PIN_I2C_SDA, STICK_S3_PIN_I2C_SCL},
+        {I2C_NUM_0, STICK_S3_PIN_I2C_SCL, STICK_S3_PIN_I2C_SDA},
+    };
+    esp_err_t last_err = ESP_FAIL;
 
-/* ── PCA9557 LCD CS / IO expander ── */
+    for (size_t i = 0; i < sizeof(candidates) / sizeof(candidates[0]); ++i) {
+        last_err = init_i2c_on(candidates[i].port, candidates[i].sda, candidates[i].scl);
+        if (last_err != ESP_OK) {
+            ESP_LOGW(TAG, "I2C port %d sda=%d scl=%d init failed: %s",
+                     candidates[i].port, candidates[i].sda, candidates[i].scl,
+                     esp_err_to_name(last_err));
+            continue;
+        }
+
+        uint8_t device_id = 0;
+        last_err = pmic_read_reg(M5PM1_REG_DEVICE_ID, &device_id);
+        if (last_err == ESP_OK) {
+            ESP_LOGI(TAG, "I2C probe port %d sda=%d scl=%d -> ok id=0x%02x",
+                     candidates[i].port, candidates[i].sda, candidates[i].scl, device_id);
+            return ESP_OK;
+        }
+
+        ESP_LOGI(TAG, "I2C probe port %d sda=%d scl=%d -> %s",
+                 candidates[i].port, candidates[i].sda, candidates[i].scl,
+                 esp_err_to_name(last_err));
+    }
+
+    return last_err;
+#endif
+}
 
 static void init_lcd_io_expander(void)
 {
+#if STICK_S3_BOARD_HAS_PCA9557
     if (!s_pca9557_dev) {
         ESP_LOGW(TAG, "PCA9557 not available");
         return;
@@ -225,14 +273,13 @@ static void init_lcd_io_expander(void)
         ESP_ERROR_CHECK_WITHOUT_ABORT(pca9557_write_reg(PCA9557_REG_CONFIG,
                                                         PCA9557_DEFAULT_CONFIG));
     }
+#endif
 }
-
-/* ── M5PM1 PMIC init (skipped on Lichuang board) ── */
 
 static void init_pmic(void)
 {
     if (!s_pmic_dev) {
-        ESP_LOGI(TAG, "no PMIC – skipping M5PM1 init (Lichuang board)");
+        ESP_LOGI(TAG, "no PMIC, skipping M5PM1 init");
         return;
     }
 
@@ -301,10 +348,13 @@ esp_err_t stick_s3_board_init(void)
         init_lcd_io_expander();
     }
 
-    /* Configure front button only (GPIO0 BOOT key on Lichuang board).
-     * Side button is not available – GPIO12 is used for I2S audio. */
+    uint64_t button_pin_mask = (1ULL << STICK_S3_PIN_BUTTON_FRONT);
+#ifdef STICK_S3_PIN_BUTTON_SIDE
+    button_pin_mask |= (1ULL << STICK_S3_PIN_BUTTON_SIDE);
+#endif
+
     const gpio_config_t button_config = {
-        .pin_bit_mask = (1ULL << STICK_S3_PIN_BUTTON_FRONT),
+        .pin_bit_mask = button_pin_mask,
         .mode = GPIO_MODE_INPUT,
         .pull_up_en = GPIO_PULLUP_ENABLE,
         .pull_down_en = GPIO_PULLDOWN_DISABLE,
@@ -325,6 +375,7 @@ i2c_master_bus_handle_t stick_s3_board_i2c_bus(void)
 
 esp_err_t stick_s3_board_lcd_select(bool selected)
 {
+#if STICK_S3_BOARD_HAS_PCA9557
     if (!s_pca9557_dev) {
         return ESP_ERR_INVALID_STATE;
     }
@@ -339,6 +390,10 @@ esp_err_t stick_s3_board_lcd_select(bool selected)
         }
     }
     return err;
+#else
+    (void)selected;
+    return ESP_OK;
+#endif
 }
 
 esp_err_t stick_s3_board_battery_voltage_mv(int *voltage_mv)
@@ -467,5 +522,9 @@ void stick_s3_board_prepare_deep_sleep(void)
 
 bool stick_s3_side_button_pressed(void)
 {
-    return false;   /* Side button not wired on Lichuang board */
+#ifdef STICK_S3_PIN_BUTTON_SIDE
+    return read_active_low_button(STICK_S3_PIN_BUTTON_SIDE);
+#else
+    return false;
+#endif
 }

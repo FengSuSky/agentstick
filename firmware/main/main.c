@@ -44,7 +44,9 @@ static bool s_usb_powered;
 static esp_pm_lock_handle_t s_cpu_freq_lock;
 static esp_timer_handle_t s_display_dim_timer;
 static esp_timer_handle_t s_deep_sleep_timer;
+#ifdef STICK_S3_PIN_PMIC_IRQ
 static esp_timer_handle_t s_battery_refresh_timer;
+#endif
 static esp_timer_handle_t s_host_response_timer;
 static uint32_t s_session_id = 1;
 static QueueHandle_t s_app_event_queue;
@@ -132,7 +134,7 @@ static esp_err_t init_power_management(void)
     const esp_pm_config_t pm_config = {
         .max_freq_mhz = CONFIG_ESP_DEFAULT_CPU_FREQ_MHZ,
         .min_freq_mhz = CONFIG_XTAL_FREQ,
-        .light_sleep_enable = false,
+        .light_sleep_enable = !STICK_S3_BOARD_IS_LICHUANG,
     };
     esp_err_t err = esp_pm_configure(&pm_config);
     if (err != ESP_OK) {
@@ -409,6 +411,7 @@ static void queue_app_event_with_ota(app_event_type_t type, uint32_t written, ui
     }
 }
 
+#ifdef STICK_S3_PIN_PMIC_IRQ
 static void queue_app_event_from_isr(app_event_type_t type, BaseType_t *high_task_woken)
 {
     if (s_app_event_queue) {
@@ -420,6 +423,7 @@ static void queue_app_event_from_isr(app_event_type_t type, BaseType_t *high_tas
         (void)xQueueSendFromISR(s_app_event_queue, &event, high_task_woken);
     }
 }
+#endif
 
 static void queue_ui_state_event(const char *state, const char *text)
 {
@@ -851,6 +855,7 @@ static esp_err_t init_host_response_timer(void)
     return esp_timer_create(&timer_args, &s_host_response_timer);
 }
 
+#ifdef STICK_S3_PIN_PMIC_IRQ
 static void battery_refresh_timer_cb(void *arg)
 {
     (void)arg;
@@ -870,6 +875,7 @@ static esp_err_t init_battery_refresh_timer(void)
     }
     return esp_timer_start_periodic(s_battery_refresh_timer, BATTERY_REFRESH_FALLBACK_US);
 }
+#endif
 
 #ifdef STICK_S3_PIN_PMIC_IRQ
 static void IRAM_ATTR pmic_irq_isr(void *arg)
@@ -1003,11 +1009,4 @@ void app_main(void)
     ESP_ERROR_CHECK(init_pmic_irq());
 #endif
 
-    ESP_LOGI(TAG, "configuring PMIC");
-    esp_pm_config_t pm_config = {
-        .max_freq_mhz = CONFIG_ESP_DEFAULT_CPU_FREQ_MHZ,
-        .min_freq_mhz = CONFIG_XTAL_FREQ,
-        .light_sleep_enable = false,
-    };
-    esp_pm_configure(&pm_config);
 }
