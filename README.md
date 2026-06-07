@@ -1,103 +1,105 @@
 # AgentStick
 
-AgentStick 是一个基于 ESP32 设备和桌面 App 的随身桌面 Agent 入口。目标是把一块小型 ESP32 设备做成可以随时拿起、按下、说话的任务入口，通过蓝牙连接到电脑上的桌面 App，再把语音任务下发给 Codex、Claude Code 等本地或桌面 Agent。Agent 完成任务后，桌面端再把状态和结果提示回用户。
+English | [简体中文](README.zh-CN.md)
 
-这个项目当前参考并基于 [VoiceStick](https://github.com/78/voicestick) 开发。VoiceStick 已经实现了 ESP32 语音采集、BLE 传输、桌面端 ASR、文本输入和固件更新等基础能力；AgentStick 会在这个基础上继续扩展为“随身给桌面 Agent 派任务”的工作流入口。
+AgentStick is a portable desktop-agent entry point built around an ESP32 device and a desktop app. The goal is to turn a small ESP32 board into a physical task trigger: pick it up, press the button, speak a task, and let the desktop app route that task to agents such as Codex, Claude Code, or other local desktop agents. When the agent finishes, the desktop app can notify you and reflect the status back to the device.
 
-## 项目目标
+This project is currently based on and inspired by [VoiceStick](https://github.com/78/voicestick). VoiceStick already provides the foundation for ESP32 audio capture, BLE transport, desktop ASR, text input, and firmware updates. AgentStick builds on that foundation and moves toward a workflow for dispatching tasks to desktop agents from a handheld device.
 
-AgentStick 想解决的问题不是单纯语音输入，而是让桌面 Agent 更容易被随时调用：
+## Goal
 
-1. 拿起 ESP32 设备，按住按钮说出任务。
-2. 设备通过 BLE 把音频和按键状态发送给桌面 App。
-3. 桌面 App 完成语音识别，理解用户要下发的任务。
-4. 桌面 App 把任务交给 Codex、Claude Code 或其他桌面 Agent。
-5. Agent 执行完成后，桌面 App 通过通知、悬浮窗或设备屏幕提示用户。
+AgentStick is not meant to be only a voice input tool. It is meant to make desktop agents easier to invoke at any time:
 
-理想使用场景包括：
+1. Pick up the ESP32 device and speak a task.
+2. The device sends audio and button state to the desktop app over BLE.
+3. The desktop app performs speech recognition and extracts the task.
+4. The desktop app routes the task to Codex, Claude Code, or another desktop agent.
+5. When the agent finishes, the desktop app notifies the user through notifications, an overlay, or the device screen.
 
-- 离开键盘时快速给 Codex 下发一个代码任务。
-- 让 Claude Code 在后台修改、检查或解释一个工程。
-- 用语音创建待办式开发任务，稍后回到电脑查看结果。
-- 把 ESP32 设备作为“随身遥控器”，控制桌面上的多个 AI Agent。
+Example use cases:
 
-## 当前状态
+- Send a quick coding task to Codex while away from the keyboard.
+- Ask Claude Code to inspect, edit, or explain a project in the background.
+- Create voice-driven development tasks and review the results later.
+- Use the ESP32 device as a handheld controller for multiple desktop AI agents.
 
-当前仓库仍处于从 VoiceStick 迁移和适配阶段，已经具备的基础能力包括：
+## Current Status
 
-- ESP32-S3 固件通过 BLE 广播和连接桌面端。
-- 设备按键触发录音，麦克风音频经 Opus 编码后通过 BLE 发送。
-- macOS 桌面端可以接收音频、调用 ASR，并显示识别结果。
-- macOS 桌面端可以把文本粘贴到当前应用。
-- 已适配立创·实战派 ESP32-S3 开发板。
-- 已验证火山引擎 ASR 配置和 macOS 本地打包流程。
+This repository is still in the migration and adaptation stage from VoiceStick. The current foundation includes:
 
-尚在规划和开发中的 AgentStick 能力：
+- ESP32-S3 firmware that advertises over BLE and connects to the desktop app.
+- Button-triggered recording with Opus-encoded microphone audio over BLE.
+- A macOS desktop app that receives audio, calls ASR, and displays recognized text.
+- Text insertion into the focused desktop app.
+- A working adaptation for the Lichuang ESP32-S3 development board.
+- Verified Volcengine ASR configuration and local macOS packaging flow.
 
-- 将识别出的语音任务路由到 Codex CLI / Codex 桌面端。
-- 将任务路由到 Claude Code。
-- 维护任务队列、任务状态和完成提醒。
-- 支持“后台执行完成后提醒我”的桌面通知。
-- 支持设备屏幕显示 Agent 执行状态。
-- 支持多个 Agent 后端和可配置任务模板。
+Planned AgentStick capabilities:
 
-## 架构草图
+- Route recognized voice tasks to Codex CLI / Codex desktop workflows.
+- Route tasks to Claude Code.
+- Maintain a task queue with task status and completion reminders.
+- Notify the user when background agent work finishes.
+- Show agent execution status on the device screen.
+- Support multiple agent backends and configurable task templates.
+
+## Architecture
 
 ```text
-ESP32 设备
-  - 按键
-  - 麦克风
-  - 屏幕状态
-  - BLE 音频 / 状态传输
+ESP32 device
+  - Button
+  - Microphone
+  - Screen status
+  - BLE audio / state transport
         |
         v
-桌面 App
-  - BLE 配对与连接
-  - ASR 语音识别
-  - 任务解析
-  - Agent 路由
-  - 通知与结果展示
+Desktop app
+  - BLE pairing and connection
+  - ASR speech recognition
+  - Task parsing
+  - Agent routing
+  - Notifications and result display
         |
         v
-桌面 Agent
+Desktop agents
   - Codex
   - Claude Code
-  - 其他本地自动化/开发助手
+  - Other local automation / development assistants
 ```
 
-## 项目结构
+## Repository Layout
 
 ```text
-firmware/          ESP-IDF 固件，当前适配 ESP32-S3
-desktop/macos/    Swift / AppKit macOS 菜单栏应用
-desktop/windows/  C++20 / Win32 Windows 桌面端工作区
-desktop/linux/    Linux 桌面端占位工作区
-website/          Vue + Vite 网站、下载页、appcast 和浏览器刷机入口
-docs/             BLE 协议、ASR、硬件适配和发布文档
-scripts/          固件资源处理、打包、DMG/MSI、appcast 更新脚本
+firmware/          ESP-IDF firmware, currently adapted for ESP32-S3
+desktop/macos/    Swift / AppKit macOS menu bar app
+desktop/windows/  C++20 / Win32 Windows desktop workspace
+desktop/linux/    Linux desktop placeholder workspace
+website/          Vue + Vite site, downloads, appcast, and browser flashing entry
+docs/             BLE protocol, ASR, hardware adaptation, and release docs
+scripts/          Firmware asset tooling, packaging, DMG/MSI, and appcast scripts
 ```
 
-## 硬件适配
+## Hardware Adaptation
 
-当前重点适配的是立创·实战派 ESP32-S3 开发板：
+The current hardware focus is the Lichuang ESP32-S3 development board:
 
-- 模组：ESP32-S3-WROOM-1-N16R8
-- 存储：8MB PSRAM、16MB Flash
-- 主按键：GPIO0
-- I2C：SDA GPIO1，SCL GPIO2
-- 音频 ADC：ES7210
-- 音频 DAC：ES8311
-- LCD：ST7789，320 x 240
-- IO 扩展：PCA9557，地址 `0x19`
+- Module: ESP32-S3-WROOM-1-N16R8
+- Memory: 8MB PSRAM, 16MB flash
+- Primary button: GPIO0
+- I2C: SDA GPIO1, SCL GPIO2
+- Audio ADC: ES7210
+- Audio DAC: ES8311
+- LCD: ST7789, 320 x 240
+- IO expander: PCA9557 at `0x19`
 
-适配记录见：
+Adaptation notes:
 
 - `docs/lichuang-esp32s3-xiaozhi-notes.md`
 - `docs/lichuang-local-adaptation-summary.md`
 
-## 固件构建
+## Firmware Build
 
-固件使用 ESP-IDF。当前本地验证环境为 ESP-IDF 5.5.x。
+The firmware uses ESP-IDF. The currently verified local environment is ESP-IDF 5.5.x.
 
 ```sh
 cd firmware
@@ -106,21 +108,21 @@ idf.py set-target esp32s3
 idf.py build
 ```
 
-烧录并打开串口监视：
+Flash and open the serial monitor:
 
 ```sh
 idf.py -p /dev/cu.usbmodemXXXX flash monitor
 ```
 
-立创板如果自动下载不稳定，可以手动进入下载模式：
+If automatic download mode is unreliable on the Lichuang board, use manual download mode:
 
-1. 按住 BOOT / 用户键。
-2. 点按 RESET。
-3. 开始烧录后松开 BOOT。
+1. Hold the BOOT / user button.
+2. Press RESET.
+3. Release BOOT after flashing starts.
 
-## macOS 桌面端
+## macOS Desktop App
 
-macOS 应用是 Swift / AppKit 菜单栏程序。
+The macOS app is a Swift / AppKit menu bar app.
 
 ```sh
 cd desktop/macos
@@ -128,20 +130,20 @@ swift build
 swift run VoiceStickApp
 ```
 
-当前配置文件路径仍沿用 VoiceStick：
+The configuration path currently still follows VoiceStick:
 
 ```text
 ~/Library/Application Support/VoiceStick/config.toml
 ```
 
-可从示例创建：
+Create it from the example:
 
 ```sh
 mkdir -p "$HOME/Library/Application Support/VoiceStick"
 cp desktop/macos/Config/config.example.toml "$HOME/Library/Application Support/VoiceStick/config.toml"
 ```
 
-常用配置：
+Common configuration:
 
 ```toml
 asr_provider = "volcengine"
@@ -157,41 +159,41 @@ target = "focused_app"
 transform = "original"
 ```
 
-不要提交任何 API Key。
+Do not commit API keys.
 
-## 与 VoiceStick 的关系
+## Relationship To VoiceStick
 
-AgentStick 目前直接参考并继承 VoiceStick 的工程结构和大量基础能力：
+AgentStick currently reuses and extends a large part of VoiceStick's foundation:
 
-- BLE GATT 协议
-- ESP32 音频采集与 Opus 编码
-- 桌面端 BLE 连接
-- ASR WebSocket 调用
-- 文本粘贴和悬浮状态显示
-- OTA / 发布脚本基础结构
+- BLE GATT protocol
+- ESP32 audio capture and Opus encoding
+- Desktop BLE connection
+- ASR WebSocket integration
+- Text insertion and overlay status display
+- OTA and release script structure
 
-后续开发会逐步把产品定位、配置命名、桌面端交互和 Agent 调度能力从 VoiceStick 语音输入场景中拆出来，形成 AgentStick 自己的任务入口体验。
+Future development will gradually separate AgentStick's product positioning, configuration names, desktop UX, and agent-dispatch layer from the original VoiceStick voice-input workflow.
 
-原项目地址：
+Original project:
 
 - [78/voicestick](https://github.com/78/voicestick)
 
-## 相关文档
+## Related Docs
 
-- `docs/protocol.md`：BLE 音频、状态、控制和 OTA 协议
-- `docs/volcengine-asr.md`：火山引擎 ASR 对接笔记
-- `docs/lichuang-esp32s3-xiaozhi-notes.md`：立创 ESP32-S3 硬件和 xiaozhi 参考记录
-- `docs/lichuang-local-adaptation-summary.md`：本地立创板适配整理
-- `docs/release.md`：macOS、Windows、固件和网站发布流程
-- `desktop/windows/README.md`：Windows 端构建说明
-- `website/README.md`：网站和 appcast 说明
+- `docs/protocol.md`: BLE audio, state, control, and OTA protocol
+- `docs/volcengine-asr.md`: Volcengine ASR integration notes
+- `docs/lichuang-esp32s3-xiaozhi-notes.md`: Lichuang ESP32-S3 hardware and xiaozhi reference notes
+- `docs/lichuang-local-adaptation-summary.md`: Local Lichuang board adaptation summary
+- `docs/release.md`: macOS, Windows, firmware, and website release flow
+- `desktop/windows/README.md`: Windows build notes
+- `website/README.md`: Website and appcast notes
 
-## 开发方向
+## Development Direction
 
-近期优先级：
+Near-term priorities:
 
-1. 把 Codex / Claude Code 任务下发链路接进 macOS 桌面端。
-2. 设计 Agent 任务状态机：queued、running、done、failed、needs input。
-3. 增加桌面通知和设备屏幕状态回写。
-4. 把立创 ESP32-S3 适配整理成显式 board target。
-5. 逐步把配置路径、App 名称和 UI 文案从 VoiceStick 迁移到 AgentStick。
+1. Connect Codex / Claude Code task dispatch into the macOS desktop app.
+2. Design an agent task state machine: queued, running, done, failed, needs input.
+3. Add desktop notifications and device screen status updates.
+4. Turn the Lichuang ESP32-S3 changes into an explicit board target.
+5. Gradually migrate configuration paths, app names, and UI copy from VoiceStick to AgentStick.
