@@ -646,8 +646,8 @@ std::string AppLanguageDisplayName(AppLanguage lang) {
 AppLanguage AppLanguageResolved(AppLanguage lang) {
     if (lang != AppLanguage::kSystem) return lang;
     LANGID lid = GetUserDefaultUILanguage();
-    PRIMARYLANGID primary = PRIMARYLANGID(lid);
-    return primary == LANG_CHINESE ? AppLanguage::kChinese : AppLanguage::kEnglish;
+    WORD primary_lang = PRIMARYLANGID(lid);
+    return primary_lang == LANG_CHINESE ? AppLanguage::kChinese : AppLanguage::kEnglish;
 }
 
 std::vector<std::string> ParseHotwordList(std::string_view text) {
