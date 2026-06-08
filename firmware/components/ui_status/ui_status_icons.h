@@ -9,11 +9,16 @@ typedef enum {
     UI_STATUS_ICON_RESTING,
     UI_STATUS_ICON_RECORDING,
     UI_STATUS_ICON_TRANSCRIBING,
+    UI_STATUS_ICON_OTA,
     UI_STATUS_ICON_ERROR,
 } ui_status_icon_scene_t;
 
 typedef struct {
     lv_obj_t *root;
+    lv_timer_t *timer;
+    const lv_image_dsc_t *const *frames;
+    uint8_t frame_count;
+    uint8_t frame_index;
 } ui_status_icons_t;
 
 void ui_status_icons_create(ui_status_icons_t *icons, lv_obj_t *screen);

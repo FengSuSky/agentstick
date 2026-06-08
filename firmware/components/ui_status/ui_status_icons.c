@@ -2,129 +2,223 @@
 
 #include <string.h>
 
-#define CAT_ICON_SIZE 112
-#define CAT_ICON_STRIDE (CAT_ICON_SIZE * 4)
-#define CAT_ICON_DATA_SIZE (CAT_ICON_SIZE * CAT_ICON_STRIDE)
-#define CAT_ICON_TOP_Y 42
+#define CLAWD_ICON_TOP_Y 42
+#define CLAWD_ICON_SIZE 112
+#define CLAWD_ICON_STRIDE (CLAWD_ICON_SIZE * 4)
+#define CLAWD_ICON_DATA_SIZE (CLAWD_ICON_SIZE * CLAWD_ICON_STRIDE)
+#define CLAWD_FRAME_COUNT 5
+#define CLAWD_FRAME_PERIOD_MS 180
 
-extern const uint8_t cat_pairing_start[] asm("_binary_cat_pairing_argb8888_bin_start");
-extern const uint8_t cat_ready_start[] asm("_binary_cat_ready_argb8888_bin_start");
-extern const uint8_t cat_listening_start[] asm("_binary_cat_listening_argb8888_bin_start");
-extern const uint8_t cat_thinking_start[] asm("_binary_cat_thinking_argb8888_bin_start");
-extern const uint8_t cat_resting_start[] asm("_binary_cat_resting_argb8888_bin_start");
-extern const uint8_t cat_error_start[] asm("_binary_cat_error_argb8888_bin_start");
+/* Embedded ARGB8888 binary data for all 8 states × 5 frames */
+extern const uint8_t _binary_clawd_boot_0_argb8888_bin_start[] asm("_binary_clawd_boot_0_argb8888_bin_start");
+extern const uint8_t _binary_clawd_boot_1_argb8888_bin_start[] asm("_binary_clawd_boot_1_argb8888_bin_start");
+extern const uint8_t _binary_clawd_boot_2_argb8888_bin_start[] asm("_binary_clawd_boot_2_argb8888_bin_start");
+extern const uint8_t _binary_clawd_boot_3_argb8888_bin_start[] asm("_binary_clawd_boot_3_argb8888_bin_start");
+extern const uint8_t _binary_clawd_boot_4_argb8888_bin_start[] asm("_binary_clawd_boot_4_argb8888_bin_start");
 
-static const lv_image_dsc_t s_cat_pairing = {
-    .header.magic = LV_IMAGE_HEADER_MAGIC,
-    .header.cf = LV_COLOR_FORMAT_ARGB8888,
-    .header.flags = 0,
-    .header.w = CAT_ICON_SIZE,
-    .header.h = CAT_ICON_SIZE,
-    .header.stride = CAT_ICON_STRIDE,
-    .data_size = CAT_ICON_DATA_SIZE,
-    .data = cat_pairing_start,
+extern const uint8_t _binary_clawd_pairing_0_argb8888_bin_start[] asm("_binary_clawd_pairing_0_argb8888_bin_start");
+extern const uint8_t _binary_clawd_pairing_1_argb8888_bin_start[] asm("_binary_clawd_pairing_1_argb8888_bin_start");
+extern const uint8_t _binary_clawd_pairing_2_argb8888_bin_start[] asm("_binary_clawd_pairing_2_argb8888_bin_start");
+extern const uint8_t _binary_clawd_pairing_3_argb8888_bin_start[] asm("_binary_clawd_pairing_3_argb8888_bin_start");
+extern const uint8_t _binary_clawd_pairing_4_argb8888_bin_start[] asm("_binary_clawd_pairing_4_argb8888_bin_start");
+
+extern const uint8_t _binary_clawd_idle_0_argb8888_bin_start[] asm("_binary_clawd_idle_0_argb8888_bin_start");
+extern const uint8_t _binary_clawd_idle_1_argb8888_bin_start[] asm("_binary_clawd_idle_1_argb8888_bin_start");
+extern const uint8_t _binary_clawd_idle_2_argb8888_bin_start[] asm("_binary_clawd_idle_2_argb8888_bin_start");
+extern const uint8_t _binary_clawd_idle_3_argb8888_bin_start[] asm("_binary_clawd_idle_3_argb8888_bin_start");
+extern const uint8_t _binary_clawd_idle_4_argb8888_bin_start[] asm("_binary_clawd_idle_4_argb8888_bin_start");
+
+extern const uint8_t _binary_clawd_resting_0_argb8888_bin_start[] asm("_binary_clawd_resting_0_argb8888_bin_start");
+extern const uint8_t _binary_clawd_resting_1_argb8888_bin_start[] asm("_binary_clawd_resting_1_argb8888_bin_start");
+extern const uint8_t _binary_clawd_resting_2_argb8888_bin_start[] asm("_binary_clawd_resting_2_argb8888_bin_start");
+extern const uint8_t _binary_clawd_resting_3_argb8888_bin_start[] asm("_binary_clawd_resting_3_argb8888_bin_start");
+extern const uint8_t _binary_clawd_resting_4_argb8888_bin_start[] asm("_binary_clawd_resting_4_argb8888_bin_start");
+
+extern const uint8_t _binary_clawd_recording_0_argb8888_bin_start[] asm("_binary_clawd_recording_0_argb8888_bin_start");
+extern const uint8_t _binary_clawd_recording_1_argb8888_bin_start[] asm("_binary_clawd_recording_1_argb8888_bin_start");
+extern const uint8_t _binary_clawd_recording_2_argb8888_bin_start[] asm("_binary_clawd_recording_2_argb8888_bin_start");
+extern const uint8_t _binary_clawd_recording_3_argb8888_bin_start[] asm("_binary_clawd_recording_3_argb8888_bin_start");
+extern const uint8_t _binary_clawd_recording_4_argb8888_bin_start[] asm("_binary_clawd_recording_4_argb8888_bin_start");
+
+extern const uint8_t _binary_clawd_transcribing_0_argb8888_bin_start[] asm("_binary_clawd_transcribing_0_argb8888_bin_start");
+extern const uint8_t _binary_clawd_transcribing_1_argb8888_bin_start[] asm("_binary_clawd_transcribing_1_argb8888_bin_start");
+extern const uint8_t _binary_clawd_transcribing_2_argb8888_bin_start[] asm("_binary_clawd_transcribing_2_argb8888_bin_start");
+extern const uint8_t _binary_clawd_transcribing_3_argb8888_bin_start[] asm("_binary_clawd_transcribing_3_argb8888_bin_start");
+extern const uint8_t _binary_clawd_transcribing_4_argb8888_bin_start[] asm("_binary_clawd_transcribing_4_argb8888_bin_start");
+
+extern const uint8_t _binary_clawd_ota_0_argb8888_bin_start[] asm("_binary_clawd_ota_0_argb8888_bin_start");
+extern const uint8_t _binary_clawd_ota_1_argb8888_bin_start[] asm("_binary_clawd_ota_1_argb8888_bin_start");
+extern const uint8_t _binary_clawd_ota_2_argb8888_bin_start[] asm("_binary_clawd_ota_2_argb8888_bin_start");
+extern const uint8_t _binary_clawd_ota_3_argb8888_bin_start[] asm("_binary_clawd_ota_3_argb8888_bin_start");
+extern const uint8_t _binary_clawd_ota_4_argb8888_bin_start[] asm("_binary_clawd_ota_4_argb8888_bin_start");
+
+extern const uint8_t _binary_clawd_error_0_argb8888_bin_start[] asm("_binary_clawd_error_0_argb8888_bin_start");
+extern const uint8_t _binary_clawd_error_1_argb8888_bin_start[] asm("_binary_clawd_error_1_argb8888_bin_start");
+extern const uint8_t _binary_clawd_error_2_argb8888_bin_start[] asm("_binary_clawd_error_2_argb8888_bin_start");
+extern const uint8_t _binary_clawd_error_3_argb8888_bin_start[] asm("_binary_clawd_error_3_argb8888_bin_start");
+extern const uint8_t _binary_clawd_error_4_argb8888_bin_start[] asm("_binary_clawd_error_4_argb8888_bin_start");
+
+#define CLAWD_FRAME_DSC(name) \
+    { \
+        .header.magic = LV_IMAGE_HEADER_MAGIC, \
+        .header.cf = LV_COLOR_FORMAT_ARGB8888, \
+        .header.flags = 0, \
+        .header.w = CLAWD_ICON_SIZE, \
+        .header.h = CLAWD_ICON_SIZE, \
+        .header.stride = CLAWD_ICON_STRIDE, \
+        .data_size = CLAWD_ICON_DATA_SIZE, \
+        .data = name##_start, \
+    }
+
+/* Frame arrays for each state */
+static const lv_image_dsc_t s_frames_boot[CLAWD_FRAME_COUNT] = {
+    CLAWD_FRAME_DSC(_binary_clawd_boot_0_argb8888_bin),
+    CLAWD_FRAME_DSC(_binary_clawd_boot_1_argb8888_bin),
+    CLAWD_FRAME_DSC(_binary_clawd_boot_2_argb8888_bin),
+    CLAWD_FRAME_DSC(_binary_clawd_boot_3_argb8888_bin),
+    CLAWD_FRAME_DSC(_binary_clawd_boot_4_argb8888_bin),
+};
+static const lv_image_dsc_t s_frames_pairing[CLAWD_FRAME_COUNT] = {
+    CLAWD_FRAME_DSC(_binary_clawd_pairing_0_argb8888_bin),
+    CLAWD_FRAME_DSC(_binary_clawd_pairing_1_argb8888_bin),
+    CLAWD_FRAME_DSC(_binary_clawd_pairing_2_argb8888_bin),
+    CLAWD_FRAME_DSC(_binary_clawd_pairing_3_argb8888_bin),
+    CLAWD_FRAME_DSC(_binary_clawd_pairing_4_argb8888_bin),
+};
+static const lv_image_dsc_t s_frames_idle[CLAWD_FRAME_COUNT] = {
+    CLAWD_FRAME_DSC(_binary_clawd_idle_0_argb8888_bin),
+    CLAWD_FRAME_DSC(_binary_clawd_idle_1_argb8888_bin),
+    CLAWD_FRAME_DSC(_binary_clawd_idle_2_argb8888_bin),
+    CLAWD_FRAME_DSC(_binary_clawd_idle_3_argb8888_bin),
+    CLAWD_FRAME_DSC(_binary_clawd_idle_4_argb8888_bin),
+};
+static const lv_image_dsc_t s_frames_resting[CLAWD_FRAME_COUNT] = {
+    CLAWD_FRAME_DSC(_binary_clawd_resting_0_argb8888_bin),
+    CLAWD_FRAME_DSC(_binary_clawd_resting_1_argb8888_bin),
+    CLAWD_FRAME_DSC(_binary_clawd_resting_2_argb8888_bin),
+    CLAWD_FRAME_DSC(_binary_clawd_resting_3_argb8888_bin),
+    CLAWD_FRAME_DSC(_binary_clawd_resting_4_argb8888_bin),
+};
+static const lv_image_dsc_t s_frames_recording[CLAWD_FRAME_COUNT] = {
+    CLAWD_FRAME_DSC(_binary_clawd_recording_0_argb8888_bin),
+    CLAWD_FRAME_DSC(_binary_clawd_recording_1_argb8888_bin),
+    CLAWD_FRAME_DSC(_binary_clawd_recording_2_argb8888_bin),
+    CLAWD_FRAME_DSC(_binary_clawd_recording_3_argb8888_bin),
+    CLAWD_FRAME_DSC(_binary_clawd_recording_4_argb8888_bin),
+};
+static const lv_image_dsc_t s_frames_transcribing[CLAWD_FRAME_COUNT] = {
+    CLAWD_FRAME_DSC(_binary_clawd_transcribing_0_argb8888_bin),
+    CLAWD_FRAME_DSC(_binary_clawd_transcribing_1_argb8888_bin),
+    CLAWD_FRAME_DSC(_binary_clawd_transcribing_2_argb8888_bin),
+    CLAWD_FRAME_DSC(_binary_clawd_transcribing_3_argb8888_bin),
+    CLAWD_FRAME_DSC(_binary_clawd_transcribing_4_argb8888_bin),
+};
+static const lv_image_dsc_t s_frames_ota[CLAWD_FRAME_COUNT] = {
+    CLAWD_FRAME_DSC(_binary_clawd_ota_0_argb8888_bin),
+    CLAWD_FRAME_DSC(_binary_clawd_ota_1_argb8888_bin),
+    CLAWD_FRAME_DSC(_binary_clawd_ota_2_argb8888_bin),
+    CLAWD_FRAME_DSC(_binary_clawd_ota_3_argb8888_bin),
+    CLAWD_FRAME_DSC(_binary_clawd_ota_4_argb8888_bin),
+};
+static const lv_image_dsc_t s_frames_error[CLAWD_FRAME_COUNT] = {
+    CLAWD_FRAME_DSC(_binary_clawd_error_0_argb8888_bin),
+    CLAWD_FRAME_DSC(_binary_clawd_error_1_argb8888_bin),
+    CLAWD_FRAME_DSC(_binary_clawd_error_2_argb8888_bin),
+    CLAWD_FRAME_DSC(_binary_clawd_error_3_argb8888_bin),
+    CLAWD_FRAME_DSC(_binary_clawd_error_4_argb8888_bin),
 };
 
-static const lv_image_dsc_t s_cat_ready = {
-    .header.magic = LV_IMAGE_HEADER_MAGIC,
-    .header.cf = LV_COLOR_FORMAT_ARGB8888,
-    .header.flags = 0,
-    .header.w = CAT_ICON_SIZE,
-    .header.h = CAT_ICON_SIZE,
-    .header.stride = CAT_ICON_STRIDE,
-    .data_size = CAT_ICON_DATA_SIZE,
-    .data = cat_ready_start,
+/* Pointer arrays for lv_image_set_src */
+static const lv_image_dsc_t *const s_src_boot[CLAWD_FRAME_COUNT] = {
+    &s_frames_boot[0], &s_frames_boot[1], &s_frames_boot[2],
+    &s_frames_boot[3], &s_frames_boot[4],
+};
+static const lv_image_dsc_t *const s_src_pairing[CLAWD_FRAME_COUNT] = {
+    &s_frames_pairing[0], &s_frames_pairing[1], &s_frames_pairing[2],
+    &s_frames_pairing[3], &s_frames_pairing[4],
+};
+static const lv_image_dsc_t *const s_src_idle[CLAWD_FRAME_COUNT] = {
+    &s_frames_idle[0], &s_frames_idle[1], &s_frames_idle[2],
+    &s_frames_idle[3], &s_frames_idle[4],
+};
+static const lv_image_dsc_t *const s_src_resting[CLAWD_FRAME_COUNT] = {
+    &s_frames_resting[0], &s_frames_resting[1], &s_frames_resting[2],
+    &s_frames_resting[3], &s_frames_resting[4],
+};
+static const lv_image_dsc_t *const s_src_recording[CLAWD_FRAME_COUNT] = {
+    &s_frames_recording[0], &s_frames_recording[1], &s_frames_recording[2],
+    &s_frames_recording[3], &s_frames_recording[4],
+};
+static const lv_image_dsc_t *const s_src_transcribing[CLAWD_FRAME_COUNT] = {
+    &s_frames_transcribing[0], &s_frames_transcribing[1], &s_frames_transcribing[2],
+    &s_frames_transcribing[3], &s_frames_transcribing[4],
+};
+static const lv_image_dsc_t *const s_src_ota[CLAWD_FRAME_COUNT] = {
+    &s_frames_ota[0], &s_frames_ota[1], &s_frames_ota[2],
+    &s_frames_ota[3], &s_frames_ota[4],
+};
+static const lv_image_dsc_t *const s_src_error[CLAWD_FRAME_COUNT] = {
+    &s_frames_error[0], &s_frames_error[1], &s_frames_error[2],
+    &s_frames_error[3], &s_frames_error[4],
 };
 
-static const lv_image_dsc_t s_cat_listening = {
-    .header.magic = LV_IMAGE_HEADER_MAGIC,
-    .header.cf = LV_COLOR_FORMAT_ARGB8888,
-    .header.flags = 0,
-    .header.w = CAT_ICON_SIZE,
-    .header.h = CAT_ICON_SIZE,
-    .header.stride = CAT_ICON_STRIDE,
-    .data_size = CAT_ICON_DATA_SIZE,
-    .data = cat_listening_start,
-};
-
-static const lv_image_dsc_t s_cat_thinking = {
-    .header.magic = LV_IMAGE_HEADER_MAGIC,
-    .header.cf = LV_COLOR_FORMAT_ARGB8888,
-    .header.flags = 0,
-    .header.w = CAT_ICON_SIZE,
-    .header.h = CAT_ICON_SIZE,
-    .header.stride = CAT_ICON_STRIDE,
-    .data_size = CAT_ICON_DATA_SIZE,
-    .data = cat_thinking_start,
-};
-
-static const lv_image_dsc_t s_cat_resting = {
-    .header.magic = LV_IMAGE_HEADER_MAGIC,
-    .header.cf = LV_COLOR_FORMAT_ARGB8888,
-    .header.flags = 0,
-    .header.w = CAT_ICON_SIZE,
-    .header.h = CAT_ICON_SIZE,
-    .header.stride = CAT_ICON_STRIDE,
-    .data_size = CAT_ICON_DATA_SIZE,
-    .data = cat_resting_start,
-};
-
-static const lv_image_dsc_t s_cat_error = {
-    .header.magic = LV_IMAGE_HEADER_MAGIC,
-    .header.cf = LV_COLOR_FORMAT_ARGB8888,
-    .header.flags = 0,
-    .header.w = CAT_ICON_SIZE,
-    .header.h = CAT_ICON_SIZE,
-    .header.stride = CAT_ICON_STRIDE,
-    .data_size = CAT_ICON_DATA_SIZE,
-    .data = cat_error_start,
-};
-
-static const lv_image_dsc_t *get_scene_image(ui_status_icon_scene_t scene)
+static const lv_image_dsc_t *const *get_scene_frames(ui_status_icon_scene_t scene)
 {
     switch (scene) {
-    case UI_STATUS_ICON_BOOT:
-    case UI_STATUS_ICON_PAIRING:
-        return &s_cat_pairing;
-    case UI_STATUS_ICON_IDLE:
-        return &s_cat_ready;
-    case UI_STATUS_ICON_RESTING:
-        return &s_cat_resting;
-    case UI_STATUS_ICON_RECORDING:
-        return &s_cat_listening;
-    case UI_STATUS_ICON_TRANSCRIBING:
-        return &s_cat_thinking;
-    case UI_STATUS_ICON_ERROR:
-        return &s_cat_error;
+    case UI_STATUS_ICON_BOOT:          return s_src_boot;
+    case UI_STATUS_ICON_PAIRING:       return s_src_pairing;
+    case UI_STATUS_ICON_IDLE:          return s_src_idle;
+    case UI_STATUS_ICON_RESTING:       return s_src_resting;
+    case UI_STATUS_ICON_RECORDING:     return s_src_recording;
+    case UI_STATUS_ICON_TRANSCRIBING:  return s_src_transcribing;
+    case UI_STATUS_ICON_OTA:           return s_src_ota;
+    case UI_STATUS_ICON_ERROR:         return s_src_error;
     }
-    return &s_cat_ready;
+    return s_src_idle;
+}
+
+static void frame_timer_cb(lv_timer_t *timer)
+{
+    ui_status_icons_t *icons = (ui_status_icons_t *)lv_timer_get_user_data(timer);
+    if (!icons || !icons->root || !icons->frames || icons->frame_count == 0) return;
+    icons->frame_index = (icons->frame_index + 1) % icons->frame_count;
+    lv_image_set_src(icons->root, icons->frames[icons->frame_index]);
 }
 
 void ui_status_icons_create(ui_status_icons_t *icons, lv_obj_t *screen)
 {
     memset(icons, 0, sizeof(*icons));
-
     icons->root = lv_image_create(screen);
     lv_obj_remove_style_all(icons->root);
-    lv_image_set_src(icons->root, &s_cat_pairing);
-    lv_obj_align(icons->root, LV_ALIGN_TOP_MID, 0, CAT_ICON_TOP_Y);
+    icons->frames = s_src_boot;
+    icons->frame_count = CLAWD_FRAME_COUNT;
+    lv_image_set_src(icons->root, icons->frames[0]);
+    lv_obj_align(icons->root, LV_ALIGN_TOP_MID, 0, CLAWD_ICON_TOP_Y);
+    icons->timer = lv_timer_create(frame_timer_cb, CLAWD_FRAME_PERIOD_MS, icons);
+    lv_timer_pause(icons->timer);
 }
 
 void ui_status_icons_stop_anim(ui_status_icons_t *icons)
 {
-    lv_anim_delete(icons->root, NULL);
+    if (!icons->timer) return;
+    lv_timer_pause(icons->timer);
 }
 
 void ui_status_icons_apply(ui_status_icons_t *icons, ui_status_icon_scene_t scene)
 {
-    ui_status_icons_stop_anim(icons);
-    lv_image_set_src(icons->root, get_scene_image(scene));
+    if (!icons->root) return;
+    icons->frames = get_scene_frames(scene);
+    icons->frame_count = CLAWD_FRAME_COUNT;
+    icons->frame_index = 0;
+    lv_image_set_src(icons->root, icons->frames[icons->frame_index]);
     lv_obj_set_style_opa(icons->root, LV_OPA_COVER, 0);
-    lv_obj_align(icons->root, LV_ALIGN_TOP_MID, 0, CAT_ICON_TOP_Y);
+    lv_obj_align(icons->root, LV_ALIGN_TOP_MID, 0, CLAWD_ICON_TOP_Y);
+    if (icons->timer) lv_timer_reset(icons->timer);
 }
 
 void ui_status_icons_start_anim(ui_status_icons_t *icons, ui_status_icon_scene_t scene)
 {
-    (void)icons;
+    if (!icons->timer) return;
     (void)scene;
+    lv_timer_resume(icons->timer);
 }

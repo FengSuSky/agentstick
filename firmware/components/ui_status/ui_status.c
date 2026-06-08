@@ -16,7 +16,6 @@
 #include "esp_lcd_panel_ops.h"
 #include "esp_lcd_panel_st7789.h"
 #include "esp_log.h"
-#include "esp_heap_caps.h"
 #include "esp_timer.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
@@ -26,7 +25,7 @@
 
 static const char *TAG = "ui_status";
 
-#if CONFIG_VOICESTICK_BOARD_LICHUANG_ESP32S3
+#if CONFIG_AGENTSTICK_BOARD_LICHUANG_ESP32S3
 #define LCD_HOST SPI3_HOST
 
 #define LCD_H_RES 320
@@ -37,7 +36,6 @@ static const char *TAG = "ui_status";
 #define LCD_MIRROR_X true
 #define LCD_MIRROR_Y false
 #define LCD_BACKLIGHT_INVERT true
-#define LCD_DIAGNOSTIC_ONLY false
 
 #define LCD_PIXEL_CLOCK_HZ (80 * 1000 * 1000)
 #define LCD_CMD_BITS 8
@@ -57,7 +55,6 @@ static const char *TAG = "ui_status";
 #define LCD_MIRROR_X false
 #define LCD_MIRROR_Y false
 #define LCD_BACKLIGHT_INVERT false
-#define LCD_DIAGNOSTIC_ONLY false
 
 #define LCD_PIXEL_CLOCK_HZ (20 * 1000 * 1000)
 #define LCD_CMD_BITS 8
@@ -285,70 +282,6 @@ static void create_status_ui(void)
     render_current_locked();
 }
 
-#if LCD_DIAGNOSTIC_ONLY
-static void draw_lcd_test_bands(esp_lcd_panel_handle_t panel)
-{
-    const uint16_t colors[] = {0xf800, 0x07e0, 0x001f, 0xffff};
-    uint16_t *line = heap_caps_malloc(LCD_H_RES * sizeof(uint16_t), MALLOC_CAP_DMA);
-    if (!line) {
-        ESP_LOGW(TAG, "skip lcd test bands: no DMA line buffer");
-        return;
-    }
-
-    const int band_height = LCD_V_RES / (int)(sizeof(colors) / sizeof(colors[0]));
-    for (size_t band = 0; band < sizeof(colors) / sizeof(colors[0]); ++band) {
-        for (int x = 0; x < LCD_H_RES; ++x) {
-            line[x] = colors[band];
-        }
-        const int y_start = band * band_height;
-        const int y_end = band + 1 == sizeof(colors) / sizeof(colors[0])
-                              ? LCD_V_RES
-                              : y_start + band_height;
-        for (int y = y_start; y < y_end; ++y) {
-            ESP_ERROR_CHECK_WITHOUT_ABORT(
-                esp_lcd_panel_draw_bitmap(panel, 0, y, LCD_H_RES, y + 1, line));
-        }
-    }
-
-    heap_caps_free(line);
-}
-
-static void fill_lcd_color(esp_lcd_panel_handle_t panel, uint16_t color)
-{
-    uint16_t *line = heap_caps_malloc(LCD_H_RES * sizeof(uint16_t), MALLOC_CAP_DMA);
-    if (!line) {
-        ESP_LOGW(TAG, "skip lcd fill: no DMA line buffer");
-        return;
-    }
-
-    for (int x = 0; x < LCD_H_RES; ++x) {
-        line[x] = color;
-    }
-    for (int y = 0; y < LCD_V_RES; ++y) {
-        ESP_ERROR_CHECK_WITHOUT_ABORT(
-            esp_lcd_panel_draw_bitmap(panel, 0, y, LCD_H_RES, y + 1, line));
-    }
-
-    heap_caps_free(line);
-}
-
-static void lcd_diagnostic_task(void *arg)
-{
-    esp_lcd_panel_handle_t panel = (esp_lcd_panel_handle_t)arg;
-    const uint16_t colors[] = {0xf800, 0x07e0, 0x001f, 0xffff, 0x0000};
-    const char *names[] = {"red", "green", "blue", "white", "black"};
-    size_t index = 0;
-
-    while (true) {
-        ESP_LOGI(TAG, "lcd diagnostic fill %s", names[index]);
-        ESP_ERROR_CHECK_WITHOUT_ABORT(stick_s3_board_lcd_select(true));
-        fill_lcd_color(panel, colors[index]);
-        index = (index + 1) % (sizeof(colors) / sizeof(colors[0]));
-        vTaskDelay(pdMS_TO_TICKS(1000));
-    }
-}
-#endif
-
 static void set_scene(ui_status_icon_scene_t scene, const char *status, const char *hint)
 {
     _lock_acquire(&s_lvgl_lock);
@@ -428,17 +361,6 @@ esp_err_t ui_status_init(void)
                         TAG, "mirror panel");
     ESP_RETURN_ON_ERROR(esp_lcd_panel_set_gap(panel, LCD_X_GAP, LCD_Y_GAP), TAG, "set panel gap");
     ESP_RETURN_ON_ERROR(esp_lcd_panel_disp_on_off(panel, true), TAG, "turn display on");
-#if LCD_DIAGNOSTIC_ONLY
-    draw_lcd_test_bands(panel);
-
-    ESP_RETURN_ON_ERROR(ui_status_set_brightness(UINT8_MAX), TAG, "set diagnostic backlight");
-    BaseType_t diagnostic_ok = xTaskCreate(lcd_diagnostic_task, "lcd_diag", 4096,
-                                           panel, LVGL_TASK_PRIORITY, NULL);
-    ESP_RETURN_ON_FALSE(diagnostic_ok == pdPASS, ESP_ERR_NO_MEM,
-                        TAG, "create lcd diagnostic task");
-    ESP_LOGI(TAG, "display ready (diagnostic only)");
-    return ESP_OK;
-#endif
 
     lv_init();
     s_display = lv_display_create(LCD_H_RES, LCD_V_RES);
@@ -459,11 +381,6 @@ esp_err_t ui_status_init(void)
     };
     ESP_RETURN_ON_ERROR(esp_lcd_panel_io_register_event_callbacks(io, &callbacks, s_display),
                         TAG, "register lcd callbacks");
-
-#if LCD_DIAGNOSTIC_ONLY
-    draw_lcd_test_bands(panel);
-    vTaskDelay(pdMS_TO_TICKS(2000));
-#endif
 
     const esp_timer_create_args_t tick_timer_args = {
         .callback = lvgl_tick_cb,
@@ -698,12 +615,12 @@ void ui_status_set_ota_progress(uint32_t written, uint32_t size)
         percent = MIN(100, (written * 100) / size);
     }
     snprintf(hint, sizeof(hint), "%" PRIu32 "%%", percent);
-    set_scene(UI_STATUS_ICON_TRANSCRIBING, "Updating", hint);
+    set_scene(UI_STATUS_ICON_OTA, "Updating", hint);
 }
 
 void ui_status_set_ota_rebooting(void)
 {
-    set_scene(UI_STATUS_ICON_TRANSCRIBING, "Rebooting", "Firmware updated");
+    set_scene(UI_STATUS_ICON_OTA, "Rebooting", "Firmware updated");
 }
 
 void ui_status_set_error(const char *message)
