@@ -1,6 +1,7 @@
 #include "onboarding_dialog.h"
 
 #include "dpi_util.h"
+#include "l10n.h"
 #include "agent_stick_cloud_api_win.h"
 
 #include <CommCtrl.h>
@@ -97,6 +98,10 @@ bool OnboardingDialog::Show() {
     apply_trial_button_ = nullptr;
     resource_label_ = nullptr;
     resource_combo_ = nullptr;
+    language_combo_ = nullptr;
+    llm_base_url_edit_ = nullptr;
+    llm_api_key_edit_ = nullptr;
+    llm_model_edit_ = nullptr;
     back_button_ = nullptr;
     next_button_ = nullptr;
     return result == IDOK;
@@ -128,6 +133,16 @@ INT_PTR OnboardingDialog::HandleMessage(UINT message, WPARAM w_param, LPARAM) {
     switch (message) {
     case WM_COMMAND:
         switch (LOWORD(w_param)) {
+        case kIdLanguageCombo:
+            if (HIWORD(w_param) == CBN_SELCHANGE) {
+                int idx = static_cast<int>(SendMessageW(language_combo_, CB_GETCURSEL, 0, 0));
+                AppLanguage lang = AppLanguage::kSystem;
+                if (idx == 1) lang = AppLanguage::kEnglish;
+                else if (idx == 2) lang = AppLanguage::kChinese;
+                config_.app_language = lang;
+                SetCurrentLanguage(lang);
+            }
+            return TRUE;
         case kIdPairDevice:
             if (on_pair_device_requested) on_pair_device_requested();
             config_ = AppConfig::Load();
@@ -187,7 +202,7 @@ LPCDLGTEMPLATE OnboardingDialog::BuildDialogTemplate() {
     AppendDialogData(&dialog_template_, &dialog_template, sizeof(dialog_template));
     AppendDialogWord(&dialog_template_, 0);
     AppendDialogWord(&dialog_template_, 0);
-    AppendDialogWideString(&dialog_template_, L"Set up AgentStick");
+    AppendDialogWideString(&dialog_template_, L"Set up AgentStick");  // keep English for window title
     AppendDialogWord(&dialog_template_, 9);
     AppendDialogWideString(&dialog_template_, L"Segoe UI");
     return reinterpret_cast<LPCDLGTEMPLATE>(dialog_template_.data());
@@ -217,6 +232,10 @@ void OnboardingDialog::DestroyControls() {
     apply_trial_button_ = nullptr;
     resource_label_ = nullptr;
     resource_combo_ = nullptr;
+    language_combo_ = nullptr;
+    llm_base_url_edit_ = nullptr;
+    llm_api_key_edit_ = nullptr;
+    llm_model_edit_ = nullptr;
     back_button_ = nullptr;
     next_button_ = nullptr;
     if (ui_font_) {
@@ -233,22 +252,30 @@ void OnboardingDialog::BuildControls() {
         return control;
     };
 
-    remember(CreateStatic(hwnd_, L"Set up AgentStick", Dp(28), Dp(22), Dp(300), Dp(30),
+    remember(CreateStatic(hwnd_, L10n::SetUpAgentStick().c_str(), Dp(28), Dp(22), Dp(300), Dp(30),
                           instance_));
-    remember(CreateStatic(hwnd_, L"Device", Dp(32), Dp(86), Dp(140), Dp(22), instance_));
-    remember(CreateStatic(hwnd_, L"Voice Recognition", Dp(32), Dp(124), Dp(140), Dp(22),
+    remember(CreateStatic(hwnd_, L10n::Language().c_str(), Dp(32), Dp(72), Dp(140), Dp(20), instance_));
+    remember(CreateStatic(hwnd_, L10n::Device().c_str(), Dp(32), Dp(100), Dp(140), Dp(20), instance_));
+    remember(CreateStatic(hwnd_, L10n::VoiceRecognition().c_str(), Dp(32), Dp(128), Dp(140), Dp(20),
                           instance_));
-    remember(CreateStatic(hwnd_, L"Ready", Dp(32), Dp(162), Dp(140), Dp(22), instance_));
+    remember(CreateStatic(hwnd_, L"LLM", Dp(32), Dp(156), Dp(140), Dp(20), instance_));
+    remember(CreateStatic(hwnd_, L10n::Ready().c_str(), Dp(32), Dp(184), Dp(140), Dp(20), instance_));
 
     const int content_x = Dp(210);
     const int content_y = Dp(76);
     const int content_w = Dp(430);
     switch (step_) {
+    case Step::kLanguage:
+        BuildLanguageStep(content_x, content_y, content_w);
+        break;
     case Step::kDevice:
         BuildDeviceStep(content_x, content_y, content_w);
         break;
     case Step::kAsr:
         BuildAsrStep(content_x, content_y, content_w);
+        break;
+    case Step::kLlm:
+        BuildLlmStep(content_x, content_y, content_w);
         break;
     case Step::kReady:
         BuildReadyStep(content_x, content_y, content_w);
@@ -257,39 +284,55 @@ void OnboardingDialog::BuildControls() {
 
     status_label_ = remember(CreateStatic(hwnd_, L"", Dp(28), Dp(374), Dp(430), Dp(22),
                                           instance_));
-    back_button_ = remember(CreateButton(hwnd_, L"Back", Dp(kClientWidth - 250), Dp(400),
+    back_button_ = remember(CreateButton(hwnd_, L10n::Back().c_str(), Dp(kClientWidth - 250), Dp(400),
                                          Dp(76), Dp(30), kIdBack, instance_));
-    next_button_ = remember(CreateButton(hwnd_, step_ == Step::kReady ? L"Finish" : L"Next",
+    next_button_ = remember(CreateButton(hwnd_, step_ == Step::kReady ? L10n::Finish().c_str() : L10n::Next().c_str(),
                                          Dp(kClientWidth - 164), Dp(400),
                                          Dp(76), Dp(30), kIdNext, instance_));
-    remember(CreateButton(hwnd_, L"Cancel", Dp(kClientWidth - 78), Dp(400),
+    remember(CreateButton(hwnd_, L10n::Cancel().c_str(), Dp(kClientWidth - 78), Dp(400),
                           Dp(60), Dp(30), kIdCancel, instance_));
 
-    EnableWindow(back_button_, step_ != Step::kDevice);
+    EnableWindow(back_button_, step_ != Step::kLanguage);
     for (HWND control : controls_) {
         SendMessageW(control, WM_SETFONT, reinterpret_cast<WPARAM>(font), TRUE);
     }
-    if (step_ == Step::kDevice && HasDevice()) SetStatus(L"Device paired. Continue to voice recognition.");
+    if (step_ == Step::kDevice && HasDevice()) SetStatus(L10n::Connected().c_str());
     if (step_ == Step::kAsr) LoadConfigIntoControls();
 }
 
+void OnboardingDialog::BuildLanguageStep(int x, int y, int w) {
+    controls_.push_back(CreateStatic(hwnd_, L10n::Language().c_str(), x, y, w, Dp(24), instance_));
+    language_combo_ = CreateCombo(hwnd_, x, y + Dp(36), w, Dp(200), kIdLanguageCombo, instance_);
+    controls_.push_back(language_combo_);
+    SendMessageW(language_combo_, CB_ADDSTRING, 0,
+                 reinterpret_cast<LPARAM>(Utf16(AppLanguageDisplayName(AppLanguage::kSystem)).c_str()));
+    SendMessageW(language_combo_, CB_ADDSTRING, 0,
+                 reinterpret_cast<LPARAM>(Utf16(AppLanguageDisplayName(AppLanguage::kEnglish)).c_str()));
+    SendMessageW(language_combo_, CB_ADDSTRING, 0,
+                 reinterpret_cast<LPARAM>(Utf16(AppLanguageDisplayName(AppLanguage::kChinese)).c_str()));
+    int lang_idx = 0;
+    if (config_.app_language == AppLanguage::kEnglish) lang_idx = 1;
+    else if (config_.app_language == AppLanguage::kChinese) lang_idx = 2;
+    SendMessageW(language_combo_, CB_SETCURSEL, lang_idx, 0);
+}
+
 void OnboardingDialog::BuildDeviceStep(int x, int y, int w) {
-    controls_.push_back(CreateStatic(hwnd_, L"Pair your AgentStick device.", x, y, w, Dp(28),
+    controls_.push_back(CreateStatic(hwnd_, L10n::PairYourDevice().c_str(), x, y, w, Dp(28),
                                      instance_));
     controls_.push_back(CreateStatic(hwnd_, DeviceSummary().c_str(), x, y + Dp(42), w, Dp(24),
                                      instance_));
     controls_.push_back(CreateStatic(hwnd_,
-        L"Turn on your StickS3, then use the pairing window to select it.",
+        L10n::SelectVoiceStickDeviceFirst().c_str(),
         x, y + Dp(76), w, Dp(40), instance_));
-    controls_.push_back(CreateButton(hwnd_, HasDevice() ? L"Pair Another Device..." : L"Pair Device...",
+    controls_.push_back(CreateButton(hwnd_, HasDevice() ? L10n::PairDevice().c_str() : L10n::PairDevice().c_str(),
                                      x, y + Dp(132), Dp(160), Dp(30),
                                      kIdPairDevice, instance_));
 }
 
 void OnboardingDialog::BuildAsrStep(int x, int y, int w) {
-    controls_.push_back(CreateStatic(hwnd_, L"Choose your speech recognition service.", x, y, w,
+    controls_.push_back(CreateStatic(hwnd_, L10n::ChooseSpeechService().c_str(), x, y, w,
                                      Dp(24), instance_));
-    controls_.push_back(CreateStatic(hwnd_, L"Provider:", x, y + Dp(48), Dp(92), Dp(22),
+    controls_.push_back(CreateStatic(hwnd_, (L10n::Provider() + L":").c_str(), x, y + Dp(48), Dp(92), Dp(22),
                                      instance_, SS_RIGHT));
     provider_combo_ = CreateCombo(hwnd_, x + Dp(104), y + Dp(44), w - Dp(104),
                                   Dp(200), kIdProviderCombo, instance_);
@@ -297,7 +340,7 @@ void OnboardingDialog::BuildAsrStep(int x, int y, int w) {
     SendMessageW(provider_combo_, CB_ADDSTRING, 0, reinterpret_cast<LPARAM>(L"AgentStick Cloud"));
     SendMessageW(provider_combo_, CB_ADDSTRING, 0, reinterpret_cast<LPARAM>(L"Volcengine"));
 
-    controls_.push_back(CreateStatic(hwnd_, L"API Key:", x, y + Dp(88), Dp(92), Dp(22),
+    controls_.push_back(CreateStatic(hwnd_, (L10n::ApiKey() + L":").c_str(), x, y + Dp(88), Dp(92), Dp(22),
                                      instance_, SS_RIGHT));
     api_key_edit_ = CreateEdit(hwnd_, x + Dp(104), y + Dp(84), w - Dp(222), Dp(24),
                                kIdApiKeyEdit, instance_, ES_PASSWORD);
@@ -318,8 +361,24 @@ void OnboardingDialog::BuildAsrStep(int x, int y, int w) {
     }
 }
 
+void OnboardingDialog::BuildLlmStep(int x, int y, int w) {
+    controls_.push_back(CreateStatic(hwnd_, L"LLM", x, y, w, Dp(24), instance_));
+    controls_.push_back(CreateStatic(hwnd_, L"Base URL:", x, y + Dp(40), Dp(92), Dp(22), instance_, SS_RIGHT));
+    llm_base_url_edit_ = CreateEdit(hwnd_, x + Dp(104), y + Dp(36), w - Dp(104), Dp(24), kIdLlmBaseUrlEdit, instance_);
+    controls_.push_back(llm_base_url_edit_);
+    controls_.push_back(CreateStatic(hwnd_, L"API Key:", x, y + Dp(76), Dp(92), Dp(22), instance_, SS_RIGHT));
+    llm_api_key_edit_ = CreateEdit(hwnd_, x + Dp(104), y + Dp(72), w - Dp(104), Dp(24), kIdLlmApiKeyEdit, instance_, ES_PASSWORD);
+    controls_.push_back(llm_api_key_edit_);
+    controls_.push_back(CreateStatic(hwnd_, L"Model:", x, y + Dp(112), Dp(92), Dp(22), instance_, SS_RIGHT));
+    llm_model_edit_ = CreateEdit(hwnd_, x + Dp(104), y + Dp(108), w - Dp(104), Dp(24), kIdLlmModelEdit, instance_);
+    controls_.push_back(llm_model_edit_);
+    SetWindowTextW(llm_base_url_edit_, Utf16(config_.llm_base_url).c_str());
+    SetWindowTextW(llm_api_key_edit_, Utf16(config_.llm_api_key).c_str());
+    SetWindowTextW(llm_model_edit_, Utf16(config_.llm_model).c_str());
+}
+
 void OnboardingDialog::BuildReadyStep(int x, int y, int w) {
-    controls_.push_back(CreateStatic(hwnd_, L"AgentStick is ready.", x, y, w, Dp(28), instance_));
+    controls_.push_back(CreateStatic(hwnd_, L10n::AgentStickIsReady().c_str(), x, y, w, Dp(28), instance_));
     controls_.push_back(CreateStatic(hwnd_, DeviceSummary().c_str(), x, y + Dp(46), w, Dp(24),
                                      instance_));
     const auto provider = config_.asr_provider == AsrProvider::kAgentStickCloud
@@ -327,7 +386,7 @@ void OnboardingDialog::BuildReadyStep(int x, int y, int w) {
                               : L"ASR: Volcengine";
     controls_.push_back(CreateStatic(hwnd_, provider, x, y + Dp(82), w, Dp(24), instance_));
     controls_.push_back(CreateStatic(hwnd_,
-        L"Press the front button on your device to dictate into the focused app.",
+        L10n::DictateInstructions().c_str(),
         x, y + Dp(124), w, Dp(40), instance_));
 }
 
@@ -412,16 +471,30 @@ void OnboardingDialog::ApplyTrialApiKey() {
 }
 
 void OnboardingDialog::GoBack() {
-    if (step_ == Step::kAsr) step_ = Step::kDevice;
-    else if (step_ == Step::kReady) step_ = Step::kAsr;
+    if (step_ == Step::kDevice) step_ = Step::kLanguage;
+    else if (step_ == Step::kAsr) step_ = Step::kDevice;
+    else if (step_ == Step::kLlm) step_ = Step::kAsr;
+    else if (step_ == Step::kReady) step_ = Step::kLlm;
     RebuildUi();
 }
 
 void OnboardingDialog::GoNext() {
+    if (step_ == Step::kLanguage) {
+        // Save language selection and reload config
+        int idx = static_cast<int>(SendMessageW(language_combo_, CB_GETCURSEL, 0, 0));
+        AppLanguage lang = AppLanguage::kSystem;
+        if (idx == 1) lang = AppLanguage::kEnglish;
+        else if (idx == 2) lang = AppLanguage::kChinese;
+        config_.app_language = lang;
+        SetCurrentLanguage(lang);
+        step_ = Step::kDevice;
+        RebuildUi();
+        return;
+    }
     if (step_ == Step::kDevice) {
         config_ = AppConfig::Load();
         if (!HasDevice()) {
-            SetStatus(L"Pair a AgentStick device first.");
+            SetStatus(L10n::SelectVoiceStickDeviceFirst().c_str());
             return;
         }
         step_ = Step::kAsr;
@@ -434,6 +507,15 @@ void OnboardingDialog::GoNext() {
             SetStatus(L"Enter an API key or apply a trial key.");
             return;
         }
+        step_ = Step::kLlm;
+        RebuildUi();
+        return;
+    }
+    if (step_ == Step::kLlm) {
+        // Save LLM fields
+        config_.llm_base_url = Utf8(GetText(llm_base_url_edit_));
+        config_.llm_api_key = Utf8(GetText(llm_api_key_edit_));
+        config_.llm_model = Utf8(GetText(llm_model_edit_));
         step_ = Step::kReady;
         RebuildUi();
         return;

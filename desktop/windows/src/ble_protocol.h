@@ -26,6 +26,8 @@ struct StateEvent {
     std::optional<std::uint32_t> duration_ms;
     std::string hardware;
     std::string firmware_version;
+    std::vector<std::string> buttons;
+    std::vector<std::string> ui_states;
 };
 
 struct FirmwareOtaStateEvent {
@@ -35,6 +37,7 @@ struct FirmwareOtaStateEvent {
     std::optional<std::uint32_t> size;
     std::string code;
     std::optional<std::uint32_t> reboot_ms;
+    std::optional<std::int32_t> esp_err;
 };
 
 class BleProtocol {

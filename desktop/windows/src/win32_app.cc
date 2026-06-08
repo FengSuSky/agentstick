@@ -3,6 +3,7 @@
 #include "asr_client_win.h"
 #include "ble_central_win.h"
 #include "log.h"
+#include "l10n.h"
 #include "resource.h"
 
 #include <Shellapi.h>
@@ -71,9 +72,9 @@ std::wstring FirmwareIdentityText(const std::string& hardware, const std::string
         return Utf16FromUtf8(hardware);
     }
     if (!version.empty()) {
-        return L"Firmware " + Utf16FromUtf8(version);
+        return L10n::Firmware(Utf16FromUtf8(version));
     }
-    return L"Firmware Unknown";
+    return L10n::FirmwareUnknown();
 }
 
 constexpr OverlayThemeColor kOverlayThemeColors[] = {
@@ -292,7 +293,7 @@ void Win32App::ShowFirmwareUpdatePrompt(const std::string& device_id,
         const int result = MessageBoxW(
             hwnd_,
             message.c_str(),
-            is_below_minimum ? L"Firmware update recommended" : L"Firmware update available",
+            is_below_minimum ? L10n::FirmwareUpdateRecommended().c_str() : L10n::FirmwareUpdateAvailable().c_str(),
             MB_ICONINFORMATION | MB_YESNO | MB_DEFBUTTON1);
         if (result == IDYES) {
             StartFirmwareUpdate(device_id);
@@ -610,12 +611,12 @@ void Win32App::RemoveTrayIcon() {
 
 void Win32App::ShowTrayMenu() {
     HMENU menu = CreatePopupMenu();
-    if (has_recoverable_input_) AppendMenuW(menu, MF_STRING, kMenuRestore, L"Restore Last Input");
-    AppendMenuW(menu, MF_STRING, kMenuPairScan, L"Pair Device...");
+    if (has_recoverable_input_) AppendMenuW(menu, MF_STRING, kMenuRestore, L10n::RestoreLastInput().c_str());
+    AppendMenuW(menu, MF_STRING, kMenuPairScan, L10n::PairDevice().c_str());
     AppendMenuW(menu, MF_SEPARATOR, 0, nullptr);
 
     if (paired_device_ids_.empty() && connected_devices_.empty()) {
-        AppendMenuW(menu, MF_STRING | MF_DISABLED, 0, L"No paired AgentStick devices");
+        AppendMenuW(menu, MF_STRING | MF_DISABLED, 0, L10n::NoAgentStickConnected().c_str());
     }
 
     auto find_connected = [&](const std::string& id) -> const ConnectedDevice* {
@@ -635,7 +636,7 @@ void Win32App::ShowTrayMenu() {
         HMENU submenu = CreatePopupMenu();
 
         // Status
-        const wchar_t* status_text = connected ? L"Connected" : L"Scanning...";
+        const wchar_t* status_text = connected ? L10n::Connected().c_str() : L10n::Scanning().c_str();
         AppendMenuW(submenu, MF_STRING | MF_DISABLED, 0, status_text);
 
         // Hardware + firmware version
@@ -667,7 +668,7 @@ void Win32App::ShowTrayMenu() {
                 kMenuThemeColorBase + static_cast<UINT>(i * kMenuOptionsPerDevice + color_index),
                 Utf16(OverlayThemeColorDisplayName(color)).c_str());
         }
-        AppendMenuW(submenu, MF_POPUP, reinterpret_cast<UINT_PTR>(theme_menu), L"Theme Color");
+        AppendMenuW(submenu, MF_POPUP, reinterpret_cast<UINT_PTR>(theme_menu), L10n::ThemeColor().c_str());
 
         HMENU position_menu = CreatePopupMenu();
         const auto position_it = config_.device_overlay_positions.find(id);
@@ -684,7 +685,7 @@ void Win32App::ShowTrayMenu() {
                 kMenuOverlayPositionBase + static_cast<UINT>(i * kMenuOptionsPerDevice + position_index),
                 Utf16(OverlayPositionDisplayName(position)).c_str());
         }
-        AppendMenuW(submenu, MF_POPUP, reinterpret_cast<UINT_PTR>(position_menu), L"Overlay Position");
+        AppendMenuW(submenu, MF_POPUP, reinterpret_cast<UINT_PTR>(position_menu), L10n::OverlayPosition().c_str());
 
         HMENU translation_menu = CreatePopupMenu();
         const auto current_profile = config_.OutputProfileForDevice(id);
@@ -692,7 +693,7 @@ void Win32App::ShowTrayMenu() {
             translation_menu,
             MF_STRING | (current_profile.transform == TextTransform::kOriginal ? MF_CHECKED : 0),
             kMenuTranslationBase + static_cast<UINT>(i * kMenuTranslationsPerDevice),
-            L"Original");
+            L10n::Original().c_str());
         AppendMenuW(translation_menu, MF_SEPARATOR, 0, nullptr);
         for (std::size_t target_index = 0; target_index < std::size(kTranslationTargets); ++target_index) {
             const auto& target = kTranslationTargets[target_index];
@@ -705,29 +706,29 @@ void Win32App::ShowTrayMenu() {
                 kMenuTranslationBase + static_cast<UINT>(i * kMenuTranslationsPerDevice + target_index + 1),
                 title.c_str());
         }
-        AppendMenuW(submenu, MF_POPUP, reinterpret_cast<UINT_PTR>(translation_menu), L"Translation");
+        AppendMenuW(submenu, MF_POPUP, reinterpret_cast<UINT_PTR>(translation_menu), L10n::Translation().c_str());
 
         if (firmware_it != firmware_info_map_.end()) {
             const auto& firmware = firmware_it->second;
             if (firmware.is_checking) {
-                AppendMenuW(submenu, MF_STRING | MF_DISABLED, 0, L"Checking for firmware updates...");
+                AppendMenuW(submenu, MF_STRING | MF_DISABLED, 0, L10n::CheckingForUpdates().c_str());
             } else if (!firmware.error_message.empty()) {
-                auto error_text = L"Firmware Check Failed";
+                auto error_text = L10n::UpdateCheckFailed().c_str();
                 AppendMenuW(submenu, MF_STRING | MF_DISABLED, 0, error_text);
             } else if (firmware.update_available && !firmware.latest_version.empty()) {
-                auto update_text = L"Update available: " + Utf16(firmware.latest_version);
+                auto update_text = L10n::FirmwareUpdateAvailable();
                 AppendMenuW(submenu, MF_STRING | MF_DISABLED, 0, update_text.c_str());
-                auto update_action = L"Update to " + Utf16(firmware.latest_version) + L"...";
+                auto update_action = L10n::UpdateTo(Utf16(firmware.latest_version));
                 AppendMenuW(submenu,
                             connected ? MF_STRING : (MF_STRING | MF_DISABLED),
                             kMenuUpdateFirmwareBase + static_cast<UINT>(i),
                             update_action.c_str());
             } else if (!firmware.latest_version.empty() && !firmware.current_version.empty()) {
-                AppendMenuW(submenu, MF_STRING | MF_DISABLED, 0, L"Firmware Up to Date");
+                AppendMenuW(submenu, MF_STRING | MF_DISABLED, 0, L10n::FirmwareUpToDate().c_str());
             } else if (!firmware.latest_version.empty()) {
-                auto latest_text = L"Latest firmware " + Utf16(firmware.latest_version);
+                auto latest_text = L10n::Firmware(Utf16(firmware.latest_version));
                 AppendMenuW(submenu, MF_STRING | MF_DISABLED, 0, latest_text.c_str());
-                auto update_action = L"Update to " + Utf16(firmware.latest_version) + L"...";
+                auto update_action = L10n::UpdateTo(Utf16(firmware.latest_version));
                 AppendMenuW(submenu,
                             connected ? MF_STRING : (MF_STRING | MF_DISABLED),
                             kMenuUpdateFirmwareBase + static_cast<UINT>(i),
@@ -737,7 +738,7 @@ void Win32App::ShowTrayMenu() {
 
         AppendMenuW(submenu, MF_SEPARATOR, 0, nullptr);
         AppendMenuW(submenu, MF_STRING, kMenuForgetBase + static_cast<UINT>(i),
-                    L"Forget This Device");
+                    L10n::ForgetThisDevice().c_str());
 
         AppendMenuW(menu, MF_POPUP, reinterpret_cast<UINT_PTR>(submenu), Utf16(title).c_str());
     }
@@ -747,33 +748,33 @@ void Win32App::ShowTrayMenu() {
     AppendMenuW(interaction_menu,
                 MF_STRING | (config_.interaction_mode == InteractionMode::kHoldToTalk ? MF_CHECKED : 0),
                 kMenuHoldToTalk,
-                L"Hold to Talk");
+                L10n::HoldToTalk().c_str());
     AppendMenuW(interaction_menu,
                 MF_STRING | (config_.interaction_mode == InteractionMode::kClickToTalk ? MF_CHECKED : 0),
                 kMenuClickToTalk,
-                L"Click to Talk");
-    AppendMenuW(menu, MF_POPUP, reinterpret_cast<UINT_PTR>(interaction_menu), L"Interaction");
+                L10n::ClickToTalk().c_str());
+    AppendMenuW(menu, MF_POPUP, reinterpret_cast<UINT_PTR>(interaction_menu), L10n::Interaction().c_str());
 
     HMENU output_menu = CreatePopupMenu();
     AppendMenuW(output_menu,
                 MF_STRING | (config_.default_output_profile.target == OutputTarget::kFocusedApp ? MF_CHECKED : 0),
                 kMenuOutputFocusedApp,
-                L"Focused App");
+                L10n::FocusedApp().c_str());
     AppendMenuW(output_menu,
                 MF_STRING | (config_.default_output_profile.target == OutputTarget::kSubtitle ? MF_CHECKED : 0),
                 kMenuOutputSubtitle,
-                L"Subtitle");
-    AppendMenuW(menu, MF_POPUP, reinterpret_cast<UINT_PTR>(output_menu), L"Output");
+                L10n::Subtitle().c_str());
+    AppendMenuW(menu, MF_POPUP, reinterpret_cast<UINT_PTR>(output_menu), L10n::Output().c_str());
 
     AppendMenuW(menu,
                 MF_STRING | (config_.auto_enter ? MF_CHECKED : 0),
                 kMenuAutoEnter,
-                L"Press Return After Paste");
+                L10n::PressReturnAfterPaste().c_str());
     AppendMenuW(menu, MF_SEPARATOR, 0, nullptr);
-    AppendMenuW(menu, MF_STRING, kMenuSettings, L"Settings...");
-    AppendMenuW(menu, MF_STRING, kMenuCheckAppUpdates, L"Check for App Updates...");
+    AppendMenuW(menu, MF_STRING, kMenuSettings, L10n::Settings().c_str());
+    AppendMenuW(menu, MF_STRING, kMenuCheckAppUpdates, L10n::CheckForAppUpdates().c_str());
     AppendMenuW(menu, MF_SEPARATOR, 0, nullptr);
-    AppendMenuW(menu, MF_STRING, kMenuQuit, L"Quit");
+    AppendMenuW(menu, MF_STRING, kMenuQuit, L10n::Quit().c_str());
     POINT point{};
     GetCursorPos(&point);
     SetForegroundWindow(hwnd_);

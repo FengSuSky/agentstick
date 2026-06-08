@@ -47,6 +47,12 @@ enum class TextTransform {
     kTranslate,
 };
 
+enum class AppLanguage {
+    kSystem,
+    kEnglish,
+    kChinese,
+};
+
 enum class BluetoothAddressKind : std::uint8_t {
     kUnspecified = 0,
     kPublic = 1,
@@ -92,6 +98,7 @@ struct AppConfig {
     bool auto_enter = true;
     bool debug_audio_cache = false;
     std::filesystem::path debug_audio_directory;
+    AppLanguage app_language = AppLanguage::kSystem;
 
     static std::filesystem::path ConfigDirectory();
     static std::filesystem::path ConfigPath();
@@ -129,5 +136,9 @@ TextTransform TextTransformFromName(std::string_view name);
 std::string TextTransformDisplayName(TextTransform transform);
 std::vector<std::string> ParseDeviceIdList(std::string_view text);
 std::vector<std::string> ParseHotwordList(std::string_view text);
+std::string AppLanguageName(AppLanguage lang);
+AppLanguage AppLanguageFromName(std::string_view name);
+std::string AppLanguageDisplayName(AppLanguage lang);
+AppLanguage AppLanguageResolved(AppLanguage lang);
 
 } // namespace agentstick

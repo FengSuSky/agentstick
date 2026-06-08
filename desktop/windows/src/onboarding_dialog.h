@@ -1,6 +1,7 @@
 #pragma once
 
 #include "app_config.h"
+#include "l10n.h"
 
 #include <Windows.h>
 
@@ -21,8 +22,10 @@ public:
 
 private:
     enum class Step {
+        kLanguage,
         kDevice,
         kAsr,
+        kLlm,
         kReady,
     };
 
@@ -32,8 +35,10 @@ private:
     void RebuildUi();
     void DestroyControls();
     void BuildControls();
+    void BuildLanguageStep(int content_x, int content_y, int content_w);
     void BuildDeviceStep(int content_x, int content_y, int content_w);
     void BuildAsrStep(int content_x, int content_y, int content_w);
+    void BuildLlmStep(int content_x, int content_y, int content_w);
     void BuildReadyStep(int content_x, int content_y, int content_w);
     void LoadConfigIntoControls();
     void SaveControlsIntoConfig();
@@ -66,11 +71,15 @@ private:
     HWND apply_trial_button_ = nullptr;
     HWND resource_label_ = nullptr;
     HWND resource_combo_ = nullptr;
+    HWND language_combo_ = nullptr;
+    HWND llm_base_url_edit_ = nullptr;
+    HWND llm_api_key_edit_ = nullptr;
+    HWND llm_model_edit_ = nullptr;
     HWND back_button_ = nullptr;
     HWND next_button_ = nullptr;
 
     static constexpr int kClientWidth = 680;
-    static constexpr int kClientHeight = 460;
+    static constexpr int kClientHeight = 500;
     static constexpr UINT kIdPairDevice = 3001;
     static constexpr UINT kIdProviderCombo = 3002;
     static constexpr UINT kIdApiKeyEdit = 3003;
@@ -79,6 +88,10 @@ private:
     static constexpr UINT kIdBack = 3006;
     static constexpr UINT kIdNext = 3007;
     static constexpr UINT kIdCancel = 3008;
+    static constexpr UINT kIdLanguageCombo = 3009;
+    static constexpr UINT kIdLlmBaseUrlEdit = 3010;
+    static constexpr UINT kIdLlmApiKeyEdit = 3011;
+    static constexpr UINT kIdLlmModelEdit = 3012;
 };
 
 bool NeedsOnboarding(const AppConfig& config);

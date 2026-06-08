@@ -250,6 +250,7 @@ void ApplyConfigValue(AppConfig& config, const std::string& key, const std::stri
     if (key == "auto_enter") config.auto_enter = BoolValue(value, config.auto_enter);
     if (key == "debug_audio_cache") config.debug_audio_cache = BoolValue(value, config.debug_audio_cache);
     if (key == "debug_audio_dir" && !value.empty()) config.debug_audio_directory = std::filesystem::path(value);
+    if (key == "app_language") config.app_language = AppLanguageFromName(value);
     if (key == "paired_device") {
         auto entry = ParsePairedDeviceEntry(value);
         if (!entry.device_id.empty()) config.paired_devices.push_back(entry);
@@ -344,6 +345,7 @@ AppConfig AppConfig::Load() {
         if (auto value = TomlString(table, "debug_audio_dir"); value && !value->empty()) {
             config.debug_audio_directory = std::filesystem::path(*value);
         }
+        if (auto value = TomlString(table, "app_language")) config.app_language = AppLanguageFromName(*value);
         for (const auto& value : TomlStringArray(table, "paired_device")) {
             auto entry = ParsePairedDeviceEntry(value);
             if (!entry.device_id.empty()) config.paired_devices.push_back(entry);
@@ -391,6 +393,7 @@ void AppConfig::Save() const {
     output << "auto_enter = " << (auto_enter ? "true" : "false") << "\n";
     output << "debug_audio_cache = " << (debug_audio_cache ? "true" : "false") << "\n";
     output << "debug_audio_dir = \"" << TomlEscape(debug_audio_directory.string()) << "\"\n";
+    output << "app_language = \"" << AppLanguageName(app_language) << "\"\n";
     if (!paired_devices.empty()) {
         output << "paired_device = [\n";
         for (const auto& entry : paired_devices) {
@@ -614,6 +617,37 @@ std::vector<std::string> ParseDeviceIdList(std::string_view text) {
         start = comma + 1;
     }
     return ids;
+}
+
+std::string AppLanguageName(AppLanguage lang) {
+    switch (lang) {
+    case AppLanguage::kEnglish: return "en";
+    case AppLanguage::kChinese: return "zh-Hans";
+    case AppLanguage::kSystem:
+    default: return "system";
+    }
+}
+
+AppLanguage AppLanguageFromName(std::string_view name) {
+    if (name == "en") return AppLanguage::kEnglish;
+    if (name == "zh-Hans" || name == "zh") return AppLanguage::kChinese;
+    return AppLanguage::kSystem;
+}
+
+std::string AppLanguageDisplayName(AppLanguage lang) {
+    switch (lang) {
+    case AppLanguage::kEnglish: return "English";
+    case AppLanguage::kChinese: return "\xe7\xae\x80\xe4\xbd\x93\xe4\xb8\xad\xe6\x96\x87";
+    case AppLanguage::kSystem:
+    default: return "System";
+    }
+}
+
+AppLanguage AppLanguageResolved(AppLanguage lang) {
+    if (lang != AppLanguage::kSystem) return lang;
+    LANGID lid = GetUserDefaultUILanguage();
+    PRIMARYLANGID primary = PRIMARYLANGID(lid);
+    return primary == LANG_CHINESE ? AppLanguage::kChinese : AppLanguage::kEnglish;
 }
 
 std::vector<std::string> ParseHotwordList(std::string_view text) {

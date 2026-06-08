@@ -30,6 +30,7 @@ configure_file(src/version.h.in ${CMAKE_CURRENT_BINARY_DIR}/version.h)
 
 add_library(agentstick_core
     src/app_config.cc
+    src/l10n.cc
     src/asr_protocol.cc
     src/ble_protocol.cc
     src/debug_audio_recorder.cc

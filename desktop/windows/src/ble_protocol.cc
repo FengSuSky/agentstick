@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <cctype>
 #include <charconv>
+#include <cstdlib>
 
 namespace agentstick {
 
@@ -98,6 +99,53 @@ std::string JsonEscape(std::string_view text) {
     return out;
 }
 
+
+std::optional<std::int32_t> JsonI32Value(std::string_view json, std::string_view key) {
+    const std::string needle = "\"" + std::string(key) + "\"";
+    auto key_pos = json.find(needle);
+    if (key_pos == std::string_view::npos) return std::nullopt;
+    auto colon = json.find(':', key_pos + needle.size());
+    if (colon == std::string_view::npos) return std::nullopt;
+    auto begin = colon + 1;
+    while (begin < json.size() && std::isspace(static_cast<unsigned char>(json[begin]))) ++begin;
+    bool negative = false;
+    if (begin < json.size() && json[begin] == '-') {
+        negative = true;
+        ++begin;
+    }
+    auto end = begin;
+    while (end < json.size() && std::isdigit(static_cast<unsigned char>(json[end]))) ++end;
+    if (begin == end) return std::nullopt;
+    std::uint32_t value = 0;
+    auto result = std::from_chars(json.data() + begin, json.data() + end, value);
+    if (result.ec != std::errc()) return std::nullopt;
+    return negative ? -static_cast<std::int32_t>(value) : static_cast<std::int32_t>(value);
+}
+
+std::vector<std::string> JsonStringArray(std::string_view json, std::string_view key) {
+    std::vector<std::string> result;
+    const std::string needle = "\"" + std::string(key) + "\"";
+    auto key_pos = json.find(needle);
+    if (key_pos == std::string_view::npos) return result;
+    auto colon = json.find(':', key_pos + needle.size());
+    if (colon == std::string_view::npos) return result;
+    auto bracket = json.find('[', colon);
+    if (bracket == std::string_view::npos) return result;
+    auto end_bracket = json.find(']', bracket);
+    if (end_bracket == std::string_view::npos) return result;
+    auto array_content = json.substr(bracket + 1, end_bracket - bracket - 1);
+    std::size_t pos = 0;
+    while (pos < array_content.size()) {
+        auto q1 = array_content.find('"', pos);
+        if (q1 == std::string_view::npos) break;
+        auto q2 = array_content.find('"', q1 + 1);
+        if (q2 == std::string_view::npos) break;
+        result.emplace_back(array_content.substr(q1 + 1, q2 - q1 - 1));
+        pos = q2 + 1;
+    }
+    return result;
+}
+
 } // namespace
 
 std::optional<AudioFrame> BleProtocol::ParseAudioFrame(std::span<const std::uint8_t> data) {
@@ -127,6 +175,8 @@ std::optional<StateEvent> BleProtocol::ParseStateEvent(std::span<const std::uint
     event.duration_ms = JsonU32Value(json, "duration_ms");
     event.hardware = JsonStringValue(json, "hardware");
     event.firmware_version = JsonStringValue(json, "firmware_version");
+    event.buttons = JsonStringArray(json, "buttons");
+    event.ui_states = JsonStringArray(json, "ui_states");
     return event;
 }
 
@@ -143,6 +193,7 @@ std::optional<FirmwareOtaStateEvent> BleProtocol::ParseFirmwareOtaStateEvent(std
     event.size = JsonU32Value(json, "size");
     event.code = JsonStringValue(json, "code");
     event.reboot_ms = JsonU32Value(json, "reboot_ms");
+    event.esp_err = JsonI32Value(json, "esp_err");
     return event;
 }
 

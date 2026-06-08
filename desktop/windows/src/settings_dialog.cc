@@ -1,4 +1,5 @@
 #include "settings_dialog.h"
+#include "l10n.h"
 #include "dpi_util.h"
 #include "agent_stick_cloud_api_win.h"
 
@@ -237,6 +238,8 @@ INT_PTR SettingsDialog::HandleMessage(UINT message, WPARAM w_param, LPARAM l_par
         debug_audio_check_ = nullptr;
         debug_dir_edit_ = nullptr;
         resource_label_ = nullptr;
+        language_combo_ = nullptr;
+    language_combo_ = nullptr;
         all_controls_.clear();
         label_controls_.clear();
         return TRUE;
@@ -299,6 +302,7 @@ void SettingsDialog::DestroyControls() {
     debug_audio_check_ = nullptr;
     debug_dir_edit_ = nullptr;
     resource_label_ = nullptr;
+    language_combo_ = nullptr;
     if (ui_font_) {
         DeleteObject(ui_font_);
         ui_font_ = nullptr;
@@ -429,6 +433,10 @@ void SettingsDialog::LoadConfigIntoControls() {
     SendMessageW(debug_audio_check_, BM_SETCHECK, config_.debug_audio_cache ? BST_CHECKED : BST_UNCHECKED, 0);
     SetWindowTextW(debug_dir_edit_, config_.debug_audio_directory.c_str());
 
+    int lang_idx = 0;
+    if (config_.app_language == AppLanguage::kEnglish) lang_idx = 1;
+    else if (config_.app_language == AppLanguage::kChinese) lang_idx = 2;
+    SendMessageW(language_combo_, CB_SETCURSEL, lang_idx, 0);
     UpdateProviderVisibility();
 }
 
@@ -458,6 +466,13 @@ void SettingsDialog::SaveSettings() {
     }
 
     config_.debug_audio_cache = SendMessageW(debug_audio_check_, BM_GETCHECK, 0, 0) == BST_CHECKED;
+
+    int lang_idx = static_cast<int>(SendMessageW(language_combo_, CB_GETCURSEL, 0, 0));
+    AppLanguage lang = AppLanguage::kSystem;
+    if (lang_idx == 1) lang = AppLanguage::kEnglish;
+    else if (lang_idx == 2) lang = AppLanguage::kChinese;
+    config_.app_language = lang;
+    SetCurrentLanguage(lang);
 
     auto dir = GetWindowText(debug_dir_edit_);
     if (!dir.empty()) config_.debug_audio_directory = dir;
@@ -523,6 +538,10 @@ void SettingsDialog::ApplyTrialApiKey() {
                              ? "Could not apply a trial API Key."
                              : result.error).c_str(),
                 L"Could Not Apply Trial API Key", MB_ICONERROR | MB_OK);
+    int lang_idx = 0;
+    if (config_.app_language == AppLanguage::kEnglish) lang_idx = 1;
+    else if (config_.app_language == AppLanguage::kChinese) lang_idx = 2;
+    SendMessageW(language_combo_, CB_SETCURSEL, lang_idx, 0);
     UpdateProviderVisibility();
 }
 
