@@ -23,7 +23,7 @@
 #include "ui_status.h"
 #include "voice_ble.h"
 
-static const char *TAG = "voice_stick";
+static const char *TAG = "agent_stick";
 
 #define BATTERY_REFRESH_FALLBACK_MS (10 * 1000)
 #define DISPLAY_DIM_TIMEOUT_MS (30 * 1000)

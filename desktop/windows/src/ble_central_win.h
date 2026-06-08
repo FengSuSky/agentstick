@@ -1,6 +1,6 @@
 #pragma once
 
-#include "voice_stick_coordinator.h"
+#include "agent_stick_coordinator.h"
 
 #include <Windows.h>
 #include <winrt/Windows.Devices.Bluetooth.h>
@@ -18,7 +18,7 @@
 #include <queue>
 #include <set>
 
-namespace voicestick {
+namespace agentstick {
 
 class BleCentralWin : public BleCentral {
 public:
@@ -118,4 +118,4 @@ public:
     void ProcessDispatchedCallbacks();
 };
 
-} // namespace voicestick
+} // namespace agentstick

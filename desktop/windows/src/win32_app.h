@@ -8,7 +8,7 @@
 #include "pair_device_dialog.h"
 #include "settings_dialog.h"
 #include "subtitle_window.h"
-#include "voice_stick_coordinator.h"
+#include "agent_stick_coordinator.h"
 
 #include <Windows.h>
 
@@ -18,9 +18,9 @@
 #include <string>
 #include <vector>
 
-namespace voicestick {
+namespace agentstick {
 
-class Win32App : public VoiceStickUi {
+class Win32App : public AgentStickUi {
 public:
     explicit Win32App(HINSTANCE instance);
     int Run();
@@ -87,7 +87,7 @@ private:
     UINT taskbar_created_message_ = 0;
     AppConfig config_;
     InputInjectorWin input_injector_;
-    std::unique_ptr<VoiceStickCoordinator> coordinator_;
+    std::unique_ptr<AgentStickCoordinator> coordinator_;
     std::unique_ptr<PairDeviceDialog> pair_device_dialog_;
     std::unique_ptr<SettingsDialog> settings_dialog_;
     std::unique_ptr<FirmwareUpdateDialog> firmware_update_dialog_;
@@ -104,4 +104,4 @@ private:
     bool is_shutting_down_ = false;
 };
 
-} // namespace voicestick
+} // namespace agentstick

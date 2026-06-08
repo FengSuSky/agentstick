@@ -55,9 +55,9 @@ jobs:
           command: |
             idf.py build
             mkdir -p ../dist
-            cp build/voice_stick.bin "../dist/voicestick-firmware-sticks3-ota-${{ steps.ver.outputs.version }}.bin"
+            cp build/agent_stick.bin "../dist/agentstick-firmware-sticks3-ota-${{ steps.ver.outputs.version }}.bin"
             cd build
-            esptool.py --chip esp32s3 merge_bin -o "../../dist/voicestick-firmware-sticks3-merged-${{ steps.ver.outputs.version }}.bin" @flash_args
+            esptool.py --chip esp32s3 merge_bin -o "../../dist/agentstick-firmware-sticks3-merged-${{ steps.ver.outputs.version }}.bin" @flash_args
 
       - name: Stage firmware checksums and manifest
         run: |
@@ -65,12 +65,12 @@ jobs:
           sudo chown -R "$(id -u):$(id -g)" dist
           version="${{ steps.ver.outputs.version }}"
           public_base="${ALIYUN_OSS_PUBLIC_BASE_URL:-https://xiaozhi-voice-assistant.oss-cn-shenzhen.aliyuncs.com}"
-          prefix="${ALIYUN_OSS_PREFIX:-voicestick/firmwares}"
+          prefix="${ALIYUN_OSS_PREFIX:-agentstick/firmwares}"
           public_base="${public_base%/}"
           prefix="${prefix#/}"
           prefix="${prefix%/}"
-          ota="voicestick-firmware-sticks3-ota-${version}.bin"
-          merged="voicestick-firmware-sticks3-merged-${version}.bin"
+          ota="agentstick-firmware-sticks3-ota-${version}.bin"
+          merged="agentstick-firmware-sticks3-merged-${version}.bin"
           cd dist
           shasum -a 256 "${ota}" > "${ota}.sha256"
           shasum -a 256 "${merged}" > "${merged}.sha256"
@@ -115,12 +115,12 @@ jobs:
           sudo -v
           curl -fsSL https://gosspublic.alicdn.com/ossutil/install.sh | sudo bash
 
-          prefix="${ALIYUN_OSS_PREFIX:-voicestick/firmwares}"
+          prefix="${ALIYUN_OSS_PREFIX:-agentstick/firmwares}"
           prefix="${prefix#/}"
           prefix="${prefix%/}"
           version="${{ steps.ver.outputs.version }}"
-          ota="voicestick-firmware-sticks3-ota-${version}.bin"
-          merged="voicestick-firmware-sticks3-merged-${version}.bin"
+          ota="agentstick-firmware-sticks3-ota-${version}.bin"
+          merged="agentstick-firmware-sticks3-merged-${version}.bin"
 
           ossutil config \
             -e "$ALIYUN_OSS_ENDPOINT" \
@@ -136,7 +136,7 @@ jobs:
       - name: Upload firmware artifact
         uses: actions/upload-artifact@v4
         with:
-          name: voicestick-firmware-${{ steps.ver.outputs.version }}
+          name: agentstick-firmware-${{ steps.ver.outputs.version }}
           path: dist/*
 
   build-macos:
@@ -227,18 +227,18 @@ jobs:
           set -euo pipefail
           version="${{ steps.ver.outputs.version }}"
           mkdir -p dist
-          cp "build/VoiceStick-${version}.dmg" dist/
-          cp "build/VoiceStick-${version}.zip" dist/
-          cp "build/VoiceStick-${version}.signature" dist/
-          ( cd dist && shasum -a 256 "VoiceStick-${version}.dmg" > "VoiceStick-${version}.dmg.sha256" )
-          ( cd dist && shasum -a 256 "VoiceStick-${version}.zip" > "VoiceStick-${version}.zip.sha256" )
-          echo "zip_length=$(wc -c < "dist/VoiceStick-${version}.zip" | tr -d ' ')" >> "$GITHUB_OUTPUT"
-          echo "sparkle_signature=$(cat "dist/VoiceStick-${version}.signature" | tr -d '\n')" >> "$GITHUB_OUTPUT"
+          cp "build/AgentStick-${version}.dmg" dist/
+          cp "build/AgentStick-${version}.zip" dist/
+          cp "build/AgentStick-${version}.signature" dist/
+          ( cd dist && shasum -a 256 "AgentStick-${version}.dmg" > "AgentStick-${version}.dmg.sha256" )
+          ( cd dist && shasum -a 256 "AgentStick-${version}.zip" > "AgentStick-${version}.zip.sha256" )
+          echo "zip_length=$(wc -c < "dist/AgentStick-${version}.zip" | tr -d ' ')" >> "$GITHUB_OUTPUT"
+          echo "sparkle_signature=$(cat "dist/AgentStick-${version}.signature" | tr -d '\n')" >> "$GITHUB_OUTPUT"
 
       - name: Upload build artifact
         uses: actions/upload-artifact@v4
         with:
-          name: voicestick-macos-${{ steps.ver.outputs.version }}
+          name: agentstick-macos-${{ steps.ver.outputs.version }}
           path: dist/*
 
   publish-release:
@@ -268,26 +268,26 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           path: dist
-          pattern: voicestick-*
+          pattern: agentstick-*
           merge-multiple: true
 
       - name: Publish Release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ steps.ver.outputs.tag }}
-          name: VoiceStick ${{ steps.ver.outputs.version }}
+          name: AgentStick ${{ steps.ver.outputs.version }}
           generate_release_notes: true
           fail_on_unmatched_files: true
           files: |
-            dist/VoiceStick-${{ steps.ver.outputs.version }}.dmg
-            dist/VoiceStick-${{ steps.ver.outputs.version }}.dmg.sha256
-            dist/VoiceStick-${{ steps.ver.outputs.version }}.zip
-            dist/VoiceStick-${{ steps.ver.outputs.version }}.zip.sha256
-            dist/VoiceStick-${{ steps.ver.outputs.version }}.signature
-            dist/voicestick-firmware-sticks3-ota-${{ steps.ver.outputs.version }}.bin
-            dist/voicestick-firmware-sticks3-ota-${{ steps.ver.outputs.version }}.bin.sha256
-            dist/voicestick-firmware-sticks3-merged-${{ steps.ver.outputs.version }}.bin
-            dist/voicestick-firmware-sticks3-merged-${{ steps.ver.outputs.version }}.bin.sha256
+            dist/AgentStick-${{ steps.ver.outputs.version }}.dmg
+            dist/AgentStick-${{ steps.ver.outputs.version }}.dmg.sha256
+            dist/AgentStick-${{ steps.ver.outputs.version }}.zip
+            dist/AgentStick-${{ steps.ver.outputs.version }}.zip.sha256
+            dist/AgentStick-${{ steps.ver.outputs.version }}.signature
+            dist/agentstick-firmware-sticks3-ota-${{ steps.ver.outputs.version }}.bin
+            dist/agentstick-firmware-sticks3-ota-${{ steps.ver.outputs.version }}.bin.sha256
+            dist/agentstick-firmware-sticks3-merged-${{ steps.ver.outputs.version }}.bin
+            dist/agentstick-firmware-sticks3-merged-${{ steps.ver.outputs.version }}.bin.sha256
             dist/manifest.json
 
   request-website-deploy:
@@ -298,6 +298,6 @@ jobs:
       - name: Trigger website deploy on main
         run: |
           set -euo pipefail
-          gh workflow run deploy-website.yml --repo 78/voicestick --ref main
+          gh workflow run deploy-website.yml --repo 78/agentstick --ref main
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

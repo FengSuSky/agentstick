@@ -2,7 +2,7 @@
 <Wix xmlns="http://wixtoolset.org/schemas/v4/wxs"
      xmlns:ui="http://wixtoolset.org/schemas/v4/wxs/ui">
 
-  <Package Name="VoiceStick"
+  <Package Name="AgentStick"
            Manufacturer="TenClass"
            Version="$(var.ProductVersion)"
            UpgradeCode="EA755DA7-1A4E-4ED2-8051-4E31B55FCA6B"
@@ -18,7 +18,7 @@
 
     <Property Id="WIXUI_EXITDIALOGOPTIONALCHECKBOXTEXT" Value="!(loc.LaunchCheckbox)" />
     <Property Id="WIXUI_EXITDIALOGOPTIONALCHECKBOX" Value="1" />
-    <SetProperty Id="WixShellExecTarget" Value="[INSTALLFOLDER]VoiceStick.exe"
+    <SetProperty Id="WixShellExecTarget" Value="[INSTALLFOLDER]AgentStick.exe"
                  After="CostFinalize" Sequence="ui" />
     <CustomAction Id="LaunchApplication" DllEntry="WixShellExec" Impersonate="yes"
                   BinaryRef="Wix4UtilCA_X86" />
@@ -27,13 +27,13 @@
                Condition="WIXUI_EXITDIALOGOPTIONALCHECKBOX = 1 and NOT Installed" />
     </UI>
 
-    <Icon Id="VoiceStickIcon" SourceFile="$(var.ProjectDir)\desktop\windows\resources\app.ico" />
-    <Property Id="ARPPRODUCTICON" Value="VoiceStickIcon" />
+    <Icon Id="AgentStickIcon" SourceFile="$(var.ProjectDir)\desktop\windows\resources\app.ico" />
+    <Property Id="ARPPRODUCTICON" Value="AgentStickIcon" />
 
     <StandardDirectory Id="ProgramFiles64Folder">
-      <Directory Id="INSTALLFOLDER" Name="VoiceStick">
-        <Component Id="VoiceStickExe" Guid="*" Bitness="always64">
-          <File Id="VoiceStickExeFile" Source="$(var.BuildDir)\VoiceStick.exe" KeyPath="yes" />
+      <Directory Id="INSTALLFOLDER" Name="AgentStick">
+        <Component Id="AgentStickExe" Guid="*" Bitness="always64">
+          <File Id="AgentStickExeFile" Source="$(var.BuildDir)\AgentStick.exe" KeyPath="yes" />
         </Component>
         <Component Id="WinSparkleDll" Guid="*" Bitness="always64">
           <File Id="WinSparkleDllFile" Source="$(var.BuildDir)\WinSparkle.dll" KeyPath="yes" />
@@ -42,15 +42,15 @@
     </StandardDirectory>
 
     <StandardDirectory Id="ProgramMenuFolder">
-      <Directory Id="VoiceStickMenuFolder" Name="VoiceStick">
+      <Directory Id="AgentStickMenuFolder" Name="AgentStick">
         <Component Id="StartMenuShortcut" Guid="*">
-          <Shortcut Id="VoiceStickStartMenuShortcut"
-                    Name="VoiceStick"
-                    Target="[INSTALLFOLDER]VoiceStick.exe"
+          <Shortcut Id="AgentStickStartMenuShortcut"
+                    Name="AgentStick"
+                    Target="[INSTALLFOLDER]AgentStick.exe"
                     WorkingDirectory="INSTALLFOLDER"
-                    Icon="VoiceStickIcon" />
+                    Icon="AgentStickIcon" />
           <RemoveFolder Id="RemoveMenuFolder" On="uninstall" />
-          <RegistryValue Root="HKCU" Key="Software\TenClass\VoiceStick"
+          <RegistryValue Root="HKCU" Key="Software\TenClass\AgentStick"
                          Name="startmenu" Type="integer" Value="1"
                          KeyPath="yes" />
         </Component>
@@ -59,19 +59,19 @@
 
     <StandardDirectory Id="DesktopFolder">
       <Component Id="DesktopShortcut" Guid="*">
-        <Shortcut Id="VoiceStickDesktopShortcut"
-                  Name="VoiceStick"
-                  Target="[INSTALLFOLDER]VoiceStick.exe"
+        <Shortcut Id="AgentStickDesktopShortcut"
+                  Name="AgentStick"
+                  Target="[INSTALLFOLDER]AgentStick.exe"
                   WorkingDirectory="INSTALLFOLDER"
-                  Icon="VoiceStickIcon" />
-        <RegistryValue Root="HKCU" Key="Software\TenClass\VoiceStick"
+                  Icon="AgentStickIcon" />
+        <RegistryValue Root="HKCU" Key="Software\TenClass\AgentStick"
                        Name="desktop_shortcut" Type="integer" Value="1"
                        KeyPath="yes" />
       </Component>
     </StandardDirectory>
 
-    <Feature Id="Main" Title="VoiceStick" Level="1">
-      <ComponentRef Id="VoiceStickExe" />
+    <Feature Id="Main" Title="AgentStick" Level="1">
+      <ComponentRef Id="AgentStickExe" />
       <ComponentRef Id="WinSparkleDll" />
       <ComponentRef Id="StartMenuShortcut" />
       <ComponentRef Id="DesktopShortcut" />

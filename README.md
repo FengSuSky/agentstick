@@ -140,20 +140,20 @@ The macOS app is a Swift / AppKit menu bar app.
 ```sh
 cd desktop/macos
 swift build
-swift run VoiceStickApp
+swift run AgentStickApp
 ```
 
 The configuration path currently still follows VoiceStick:
 
 ```text
-~/Library/Application Support/VoiceStick/config.toml
+~/Library/Application Support/AgentStick/config.toml
 ```
 
 Create it from the example:
 
 ```sh
-mkdir -p "$HOME/Library/Application Support/VoiceStick"
-cp desktop/macos/Config/config.example.toml "$HOME/Library/Application Support/VoiceStick/config.toml"
+mkdir -p "$HOME/Library/Application Support/AgentStick"
+cp desktop/macos/Config/config.example.toml "$HOME/Library/Application Support/AgentStick/config.toml"
 ```
 
 Common configuration:

@@ -7,7 +7,7 @@
 #include <string_view>
 #include <vector>
 
-namespace voicestick {
+namespace agentstick {
 
 struct AudioFrame {
     std::uint32_t session_id = 0;
@@ -64,4 +64,4 @@ public:
     static std::string NormalizeDeviceId(std::string_view text);
 };
 
-} // namespace voicestick
+} // namespace agentstick

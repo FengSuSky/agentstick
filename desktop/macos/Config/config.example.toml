@@ -1,6 +1,6 @@
 asr_provider = "volcengine"
-voicestick_api_key = ""
-voicestick_cloud_url = "wss://api.xiaozhi.me/voicestick/asr/"
+agentstick_api_key = ""
+agentstick_cloud_url = "wss://api.xiaozhi.me/agentstick/asr/"
 volcengine_api_key = "your_volcengine_access_key"
 volcengine_app_key = ""  # set for old-style auth (X-Api-App-Key + X-Api-Access-Key)
 llm_base_url = "https://api.openai.com/v1"
@@ -8,13 +8,13 @@ llm_api_key = "your_openai_compatible_llm_api_key"
 llm_model = "gpt-5.5"
 interaction_mode = "hold_to_talk"
 resource_id = "volc.seedasr.sauc.duration"
-asr_hotwords = "小智,VoiceStick"
+asr_hotwords = "小智,AgentStick"
 paired_device_ids = ""
 device_theme_colors = ""
 device_overlay_positions = ""
 auto_enter = true
 debug_audio_cache = false
-# debug_audio_dir = "~/Library/Application Support/VoiceStick/DebugAudio"
+# debug_audio_dir = "~/Library/Application Support/AgentStick/DebugAudio"
 
 [output]
 target = "focused_app"
@@ -29,3 +29,6 @@ translation_target = "en"
 # [device."09AF".output]
 # transform = "translate"
 # translation_target = "zh-Hans"
+
+# UI language: "system" (follow macOS), "en" (English), "zh-Hans" (简体中文)
+# app_language = "system"

@@ -1,4 +1,4 @@
-# VoiceStick Desktop
+# AgentStick Desktop
 
 Desktop clients are organized by platform. The existing macOS app remains a Swift package, while Windows and Linux start as separate C++ workspaces.
 

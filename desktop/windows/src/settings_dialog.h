@@ -7,7 +7,7 @@
 #include <functional>
 #include <vector>
 
-namespace voicestick {
+namespace agentstick {
 
 class SettingsDialog {
 public:
@@ -72,4 +72,4 @@ private:
     static constexpr UINT kIdApplyTrialApiKey = 2013;
 };
 
-} // namespace voicestick
+} // namespace agentstick

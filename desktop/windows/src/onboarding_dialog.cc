@@ -1,7 +1,7 @@
 #include "onboarding_dialog.h"
 
 #include "dpi_util.h"
-#include "voice_stick_cloud_api_win.h"
+#include "agent_stick_cloud_api_win.h"
 
 #include <CommCtrl.h>
 #include <Shellapi.h>
@@ -10,7 +10,7 @@
 #include <string>
 #include <utility>
 
-namespace voicestick {
+namespace agentstick {
 
 namespace {
 
@@ -136,7 +136,7 @@ INT_PTR OnboardingDialog::HandleMessage(UINT message, WPARAM w_param, LPARAM) {
         case kIdProviderCombo:
             if (HIWORD(w_param) == CBN_SELCHANGE) {
                 int idx = static_cast<int>(SendMessageW(provider_combo_, CB_GETCURSEL, 0, 0));
-                const auto& key = idx == 0 ? config_.voicestick_api_key : config_.volcengine_api_key;
+                const auto& key = idx == 0 ? config_.agentstick_api_key : config_.volcengine_api_key;
                 SetWindowTextW(api_key_edit_, Utf16(key).c_str());
                 UpdateProviderVisibility();
             }
@@ -187,7 +187,7 @@ LPCDLGTEMPLATE OnboardingDialog::BuildDialogTemplate() {
     AppendDialogData(&dialog_template_, &dialog_template, sizeof(dialog_template));
     AppendDialogWord(&dialog_template_, 0);
     AppendDialogWord(&dialog_template_, 0);
-    AppendDialogWideString(&dialog_template_, L"Set up VoiceStick");
+    AppendDialogWideString(&dialog_template_, L"Set up AgentStick");
     AppendDialogWord(&dialog_template_, 9);
     AppendDialogWideString(&dialog_template_, L"Segoe UI");
     return reinterpret_cast<LPCDLGTEMPLATE>(dialog_template_.data());
@@ -233,7 +233,7 @@ void OnboardingDialog::BuildControls() {
         return control;
     };
 
-    remember(CreateStatic(hwnd_, L"Set up VoiceStick", Dp(28), Dp(22), Dp(300), Dp(30),
+    remember(CreateStatic(hwnd_, L"Set up AgentStick", Dp(28), Dp(22), Dp(300), Dp(30),
                           instance_));
     remember(CreateStatic(hwnd_, L"Device", Dp(32), Dp(86), Dp(140), Dp(22), instance_));
     remember(CreateStatic(hwnd_, L"Voice Recognition", Dp(32), Dp(124), Dp(140), Dp(22),
@@ -274,7 +274,7 @@ void OnboardingDialog::BuildControls() {
 }
 
 void OnboardingDialog::BuildDeviceStep(int x, int y, int w) {
-    controls_.push_back(CreateStatic(hwnd_, L"Pair your VoiceStick device.", x, y, w, Dp(28),
+    controls_.push_back(CreateStatic(hwnd_, L"Pair your AgentStick device.", x, y, w, Dp(28),
                                      instance_));
     controls_.push_back(CreateStatic(hwnd_, DeviceSummary().c_str(), x, y + Dp(42), w, Dp(24),
                                      instance_));
@@ -294,7 +294,7 @@ void OnboardingDialog::BuildAsrStep(int x, int y, int w) {
     provider_combo_ = CreateCombo(hwnd_, x + Dp(104), y + Dp(44), w - Dp(104),
                                   Dp(200), kIdProviderCombo, instance_);
     controls_.push_back(provider_combo_);
-    SendMessageW(provider_combo_, CB_ADDSTRING, 0, reinterpret_cast<LPARAM>(L"VoiceStick Cloud"));
+    SendMessageW(provider_combo_, CB_ADDSTRING, 0, reinterpret_cast<LPARAM>(L"AgentStick Cloud"));
     SendMessageW(provider_combo_, CB_ADDSTRING, 0, reinterpret_cast<LPARAM>(L"Volcengine"));
 
     controls_.push_back(CreateStatic(hwnd_, L"API Key:", x, y + Dp(88), Dp(92), Dp(22),
@@ -319,11 +319,11 @@ void OnboardingDialog::BuildAsrStep(int x, int y, int w) {
 }
 
 void OnboardingDialog::BuildReadyStep(int x, int y, int w) {
-    controls_.push_back(CreateStatic(hwnd_, L"VoiceStick is ready.", x, y, w, Dp(28), instance_));
+    controls_.push_back(CreateStatic(hwnd_, L"AgentStick is ready.", x, y, w, Dp(28), instance_));
     controls_.push_back(CreateStatic(hwnd_, DeviceSummary().c_str(), x, y + Dp(46), w, Dp(24),
                                      instance_));
-    const auto provider = config_.asr_provider == AsrProvider::kVoiceStickCloud
-                              ? L"ASR: VoiceStick Cloud"
+    const auto provider = config_.asr_provider == AsrProvider::kAgentStickCloud
+                              ? L"ASR: AgentStick Cloud"
                               : L"ASR: Volcengine";
     controls_.push_back(CreateStatic(hwnd_, provider, x, y + Dp(82), w, Dp(24), instance_));
     controls_.push_back(CreateStatic(hwnd_,
@@ -334,9 +334,9 @@ void OnboardingDialog::BuildReadyStep(int x, int y, int w) {
 void OnboardingDialog::LoadConfigIntoControls() {
     if (!provider_combo_) return;
     SendMessageW(provider_combo_, CB_SETCURSEL,
-                 config_.asr_provider == AsrProvider::kVoiceStickCloud ? 0 : 1, 0);
-    const auto& key = config_.asr_provider == AsrProvider::kVoiceStickCloud
-                          ? config_.voicestick_api_key
+                 config_.asr_provider == AsrProvider::kAgentStickCloud ? 0 : 1, 0);
+    const auto& key = config_.asr_provider == AsrProvider::kAgentStickCloud
+                          ? config_.agentstick_api_key
                           : config_.volcengine_api_key;
     SetWindowTextW(api_key_edit_, Utf16(key).c_str());
     const auto resource = Utf16(config_.resource_id);
@@ -349,10 +349,10 @@ void OnboardingDialog::LoadConfigIntoControls() {
 void OnboardingDialog::SaveControlsIntoConfig() {
     if (!provider_combo_) return;
     const int provider_idx = static_cast<int>(SendMessageW(provider_combo_, CB_GETCURSEL, 0, 0));
-    config_.asr_provider = provider_idx == 0 ? AsrProvider::kVoiceStickCloud : AsrProvider::kVolcengine;
+    config_.asr_provider = provider_idx == 0 ? AsrProvider::kAgentStickCloud : AsrProvider::kVolcengine;
     const auto api_key = Utf8(GetText(api_key_edit_));
-    if (config_.asr_provider == AsrProvider::kVoiceStickCloud) {
-        config_.voicestick_api_key = api_key;
+    if (config_.asr_provider == AsrProvider::kAgentStickCloud) {
+        config_.agentstick_api_key = api_key;
     } else {
         config_.volcengine_api_key = api_key;
     }
@@ -380,15 +380,15 @@ void OnboardingDialog::UpdateProviderVisibility() {
 
 void OnboardingDialog::ApplyTrialApiKey() {
     SaveControlsIntoConfig();
-    if (config_.asr_provider != AsrProvider::kVoiceStickCloud) return;
+    if (config_.asr_provider != AsrProvider::kAgentStickCloud) return;
     SetStatus(L"Applying trial API key...");
     EnableWindow(apply_trial_button_, FALSE);
     UpdateWindow(hwnd_);
     const auto device_id = config_.paired_device_ids.empty() ? std::string() : config_.paired_device_ids.front();
-    auto result = ApplyVoiceStickCloudTrialApiKey(config_.voicestick_cloud_url, device_id);
+    auto result = ApplyAgentStickCloudTrialApiKey(config_.agentstick_cloud_url, device_id);
     EnableWindow(apply_trial_button_, TRUE);
     if (!result.api_key.empty()) {
-        config_.voicestick_api_key = result.api_key;
+        config_.agentstick_api_key = result.api_key;
         SetWindowTextW(api_key_edit_, Utf16(result.api_key).c_str());
         SetStatus(L"Trial API key applied.");
         UpdateProviderVisibility();
@@ -421,7 +421,7 @@ void OnboardingDialog::GoNext() {
     if (step_ == Step::kDevice) {
         config_ = AppConfig::Load();
         if (!HasDevice()) {
-            SetStatus(L"Pair a VoiceStick device first.");
+            SetStatus(L"Pair a AgentStick device first.");
             return;
         }
         step_ = Step::kAsr;
@@ -503,4 +503,4 @@ int OnboardingDialog::Dp(int px) const {
     return ScalePx(px, dpi_);
 }
 
-} // namespace voicestick
+} // namespace agentstick

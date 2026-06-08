@@ -15,7 +15,7 @@
 #include <utility>
 #include <vector>
 
-namespace voicestick {
+namespace agentstick {
 
 namespace {
 
@@ -122,7 +122,7 @@ std::string DownloadText(const std::string& url, std::string& error) {
     path.append(parts.lpszExtraInfo, parts.dwExtraInfoLength);
     const bool secure = parts.nScheme == INTERNET_SCHEME_HTTPS;
 
-    HINTERNET session = WinHttpOpen(L"VoiceStick/1.0", WINHTTP_ACCESS_TYPE_DEFAULT_PROXY,
+    HINTERNET session = WinHttpOpen(L"AgentStick/1.0", WINHTTP_ACCESS_TYPE_DEFAULT_PROXY,
                                     WINHTTP_NO_PROXY_NAME, WINHTTP_NO_PROXY_BYPASS, 0);
     if (!session) {
         error = "Failed to open HTTP session.";
@@ -206,7 +206,7 @@ FirmwareManifestClient::FirmwareManifestClient(std::string manifest_url)
     : manifest_url_(std::move(manifest_url)) {}
 
 std::string FirmwareManifestClient::DefaultManifestUrl() {
-    return "https://xiaozhi-voice-assistant.oss-cn-shenzhen.aliyuncs.com/voicestick/firmwares/latest/manifest.json";
+    return "https://xiaozhi-voice-assistant.oss-cn-shenzhen.aliyuncs.com/agentstick/firmwares/latest/manifest.json";
 }
 
 void FirmwareManifestClient::FetchManifest(ManifestCallback callback) const {
@@ -285,4 +285,4 @@ bool IsFirmwareHardwareCompatible(std::string_view device_hardware,
     return NormalizedHardwareName(device_hardware) == NormalizedHardwareName(manifest_hardware);
 }
 
-} // namespace voicestick
+} // namespace agentstick

@@ -7,7 +7,7 @@
 #include <functional>
 #include <vector>
 
-namespace voicestick {
+namespace agentstick {
 
 class OnboardingDialog {
 public:
@@ -83,4 +83,4 @@ private:
 
 bool NeedsOnboarding(const AppConfig& config);
 
-} // namespace voicestick
+} // namespace agentstick

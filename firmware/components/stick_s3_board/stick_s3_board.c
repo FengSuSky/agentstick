@@ -188,7 +188,7 @@ static esp_err_t init_i2c_on(i2c_port_t port, gpio_num_t sda, gpio_num_t scl)
 
 static esp_err_t init_i2c(void)
 {
-#if CONFIG_VOICESTICK_BOARD_LICHUANG_ESP32S3
+#if CONFIG_AGENTSTICK_BOARD_LICHUANG_ESP32S3
     esp_err_t err = init_i2c_on(I2C_NUM_0, STICK_S3_PIN_I2C_SDA, STICK_S3_PIN_I2C_SCL);
     if (err != ESP_OK) {
         ESP_LOGW(TAG, "I2C port 0 sda=%d scl=%d init failed: %s",

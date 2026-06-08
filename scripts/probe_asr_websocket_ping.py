@@ -42,7 +42,7 @@ def load_windows_config() -> dict[str, str]:
     appdata = os.environ.get("APPDATA")
     if not appdata:
         return {}
-    path = Path(appdata) / "VoiceStick" / "config.toml"
+    path = Path(appdata) / "AgentStick" / "config.toml"
     values: dict[str, str] = {}
     try:
         lines = path.read_text(encoding="utf-8").splitlines()
@@ -72,7 +72,7 @@ def json_escape(text: str) -> str:
 
 def session_payload(resource_id: str) -> bytes:
     payload = (
-        '{"user":{"uid":"voice-stick-local"},'
+        '{"user":{"uid":"agent-stick-local"},'
         '"audio":{"format":"ogg","codec":"opus","rate":16000,"bits":16,"channel":1},'
         '"request":{"model_name":"bigmodel","enable_nonstream":true,'
         '"show_utterances":false,"result_type":"full","enable_ddc":true,'
@@ -198,10 +198,10 @@ def websocket_handshake(url: str, api_key: str, resource_id: str, timeout: float
         "Connection: Upgrade",
         f"Sec-WebSocket-Key: {key}",
         "Sec-WebSocket-Version: 13",
-        "User-Agent: VoiceStick-ASR-Fragment-Probe/1.0",
+        "User-Agent: AgentStick-ASR-Fragment-Probe/1.0",
         f"X-Api-Key: {api_key}",
         f"X-Api-Resource-Id: {resource_id}",
-        f"X-Api-Request-Id: voice-stick-fragment-probe-{secrets.token_hex(8)}",
+        f"X-Api-Request-Id: agent-stick-fragment-probe-{secrets.token_hex(8)}",
         "X-Api-Sequence: -1",
         "",
         "",
@@ -236,13 +236,13 @@ def parse_event_id(payload: bytes) -> str:
 def main() -> int:
     config = load_windows_config()
     provider = config.get("asr_provider", "volcengine")
-    default_url = config.get("voicestick_cloud_url") if provider == "voicestick_cloud" else VOLCENGINE_URL
-    default_key = config.get("voicestick_api_key") if provider == "voicestick_cloud" else config.get("volcengine_api_key")
+    default_url = config.get("agentstick_cloud_url") if provider == "agentstick_cloud" else VOLCENGINE_URL
+    default_key = config.get("agentstick_api_key") if provider == "agentstick_cloud" else config.get("volcengine_api_key")
 
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--url", default=os.environ.get("VOICESTICK_ASR_URL") or default_url or VOLCENGINE_URL)
-    parser.add_argument("--api-key", default=os.environ.get("VOICESTICK_ASR_API_KEY") or default_key)
-    parser.add_argument("--resource-id", default=os.environ.get("VOICESTICK_ASR_RESOURCE_ID") or config.get("resource_id") or DEFAULT_RESOURCE_ID)
+    parser.add_argument("--url", default=os.environ.get("AGENTSTICK_ASR_URL") or default_url or VOLCENGINE_URL)
+    parser.add_argument("--api-key", default=os.environ.get("AGENTSTICK_ASR_API_KEY") or default_key)
+    parser.add_argument("--resource-id", default=os.environ.get("AGENTSTICK_ASR_RESOURCE_ID") or config.get("resource_id") or DEFAULT_RESOURCE_ID)
     parser.add_argument("--seconds", type=float, default=30.0, help="How long to observe frames after connecting.")
     parser.add_argument("--timeout", type=float, default=15.0, help="Socket read/connect timeout.")
     parser.add_argument("--legacy", action="store_true", help="Send the non-reusable ASR client request frame.")
@@ -251,7 +251,7 @@ def main() -> int:
     args = parser.parse_args()
 
     if not args.api_key:
-        print("Missing ASR API key. Set VOICESTICK_ASR_API_KEY or configure VoiceStick first.", file=sys.stderr)
+        print("Missing ASR API key. Set AGENTSTICK_ASR_API_KEY or configure AgentStick first.", file=sys.stderr)
         return 2
 
     print(f"Connecting to {args.url}")
@@ -262,7 +262,7 @@ def main() -> int:
     ping_frames = 0
     pong_frames = 0
     current_message = bytearray()
-    session_id = "voice-stick-fragment-probe-" + secrets.token_hex(8)
+    session_id = "agent-stick-fragment-probe-" + secrets.token_hex(8)
 
     try:
         if args.legacy:

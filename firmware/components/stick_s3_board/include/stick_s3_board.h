@@ -5,7 +5,7 @@
 #include "esp_err.h"
 #include "driver/i2c_master.h"
 
-#if CONFIG_VOICESTICK_BOARD_LICHUANG_ESP32S3
+#if CONFIG_AGENTSTICK_BOARD_LICHUANG_ESP32S3
 
 #define STICK_S3_BOARD_IS_LICHUANG 1
 

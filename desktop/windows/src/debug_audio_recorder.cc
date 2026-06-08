@@ -5,7 +5,7 @@
 #include <iomanip>
 #include <sstream>
 
-namespace voicestick {
+namespace agentstick {
 
 DebugAudioRecorder::DebugAudioRecorder(bool enabled, std::filesystem::path directory)
     : enabled_(enabled), directory_(std::move(directory)) {}
@@ -56,4 +56,4 @@ std::filesystem::path DebugAudioRecorder::FilePath() const {
     return directory_ / name.str();
 }
 
-} // namespace voicestick
+} // namespace agentstick

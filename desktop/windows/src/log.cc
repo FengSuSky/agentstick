@@ -8,7 +8,7 @@
 #include <iomanip>
 #include <sstream>
 
-namespace voicestick {
+namespace agentstick {
 
 namespace {
 
@@ -27,7 +27,7 @@ std::string CurrentTimestamp() {
 }
 
 std::filesystem::path LogFilePath() {
-    return AppConfig::DefaultDebugAudioDirectory().parent_path() / "VoiceStickApp.log";
+    return AppConfig::DefaultDebugAudioDirectory().parent_path() / "AgentStickApp.log";
 }
 
 } // namespace
@@ -42,4 +42,4 @@ void Log(std::string_view category, std::string_view message) {
     }
 }
 
-} // namespace voicestick
+} // namespace agentstick

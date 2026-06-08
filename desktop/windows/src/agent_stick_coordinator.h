@@ -21,7 +21,7 @@
 #include <thread>
 #include <vector>
 
-namespace voicestick {
+namespace agentstick {
 
 struct ConnectedDevice {
     std::string id;
@@ -85,9 +85,9 @@ public:
     std::function<void(std::string, std::string)> on_upgrade_url;
 };
 
-class VoiceStickUi {
+class AgentStickUi {
 public:
-    virtual ~VoiceStickUi() = default;
+    virtual ~AgentStickUi() = default;
     virtual void SetStatus(const std::string& status) = 0;
     virtual void SetConnectedDevices(const std::vector<ConnectedDevice>& devices) = 0;
     virtual void SetDeviceInfo(const DeviceInfo& info) = 0;
@@ -124,15 +124,15 @@ public:
     virtual void Paste(const std::string& text, bool press_enter) = 0;
 };
 
-class VoiceStickCoordinator {
+class AgentStickCoordinator {
 public:
-    VoiceStickCoordinator(AppConfig config,
+    AgentStickCoordinator(AppConfig config,
                           std::unique_ptr<BleCentral> ble,
                           std::unique_ptr<AsrClient> asr,
-                          VoiceStickUi* ui,
+                          AgentStickUi* ui,
                           InputInjector* input_injector,
                           std::function<std::unique_ptr<AsrClient>(const AppConfig&)> asr_factory = {});
-    ~VoiceStickCoordinator();
+    ~AgentStickCoordinator();
 
     void Start();
     void Shutdown();
@@ -280,7 +280,7 @@ private:
     std::unique_ptr<AsrClient> asr_;
     std::function<std::unique_ptr<AsrClient>(const AppConfig&)> asr_factory_;
     LLMTranslationClient translator_;
-    VoiceStickUi* ui_;
+    AgentStickUi* ui_;
     InputInjector* input_injector_;
     std::mutex audio_mutex_;
     OggOpusMuxer ogg_muxer_{16000, 1};
@@ -320,4 +320,4 @@ private:
     static constexpr std::chrono::hours kFirmwareManifestCacheDuration{24};
 };
 
-} // namespace voicestick
+} // namespace agentstick

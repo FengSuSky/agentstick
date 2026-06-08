@@ -5,7 +5,7 @@
 #include <string>
 #include <vector>
 
-namespace voicestick {
+namespace agentstick {
 
 using ByteVector = std::vector<std::uint8_t>;
 
@@ -61,4 +61,4 @@ inline std::string Utf8FromBytes(std::span<const std::uint8_t> bytes) {
     return std::string(reinterpret_cast<const char*>(bytes.data()), bytes.size());
 }
 
-} // namespace voicestick
+} // namespace agentstick

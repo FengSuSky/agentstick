@@ -7,13 +7,13 @@ import productPhoto from './assets/sticks3.png'
 import packageInfo from '../package.json'
 
 const { locale, t } = useI18n()
-const releaseUrl = 'https://github.com/78/voicestick/releases/latest'
-const githubUrl = 'https://github.com/78/voicestick'
-const releaseDownloadBase = `https://github.com/78/voicestick/releases/download/v${packageInfo.version}`
-const macDownloadUrl = `${releaseDownloadBase}/VoiceStick-${packageInfo.version}.dmg`
-const windowsDownloadUrl = `${releaseDownloadBase}/VoiceStick_${packageInfo.version}.msi`
-const defaultFirmwareUrl = `https://xiaozhi-voice-assistant.oss-cn-shenzhen.aliyuncs.com/voicestick/firmwares/latest/voicestick-firmware-sticks3-merged-${packageInfo.version}.bin`
-const firmwareManifestUrl = import.meta.env.VITE_FIRMWARE_MANIFEST_URL || 'https://xiaozhi-voice-assistant.oss-cn-shenzhen.aliyuncs.com/voicestick/firmwares/latest/manifest.json'
+const releaseUrl = 'https://github.com/78/agentstick/releases/latest'
+const githubUrl = 'https://github.com/78/agentstick'
+const releaseDownloadBase = `https://github.com/78/agentstick/releases/download/v${packageInfo.version}`
+const macDownloadUrl = `${releaseDownloadBase}/AgentStick-${packageInfo.version}.dmg`
+const windowsDownloadUrl = `${releaseDownloadBase}/AgentStick_${packageInfo.version}.msi`
+const defaultFirmwareUrl = `https://xiaozhi-voice-assistant.oss-cn-shenzhen.aliyuncs.com/agentstick/firmwares/latest/agentstick-firmware-sticks3-merged-${packageInfo.version}.bin`
+const firmwareManifestUrl = import.meta.env.VITE_FIRMWARE_MANIFEST_URL || 'https://xiaozhi-voice-assistant.oss-cn-shenzhen.aliyuncs.com/agentstick/firmwares/latest/manifest.json'
 const firmwareUrl = ref(import.meta.env.VITE_FIRMWARE_URL || defaultFirmwareUrl)
 const appResetSequence = 'D0|R1|W100|R0|W500|D0'
 
@@ -178,9 +178,9 @@ async function flashFirmware() {
 <template>
   <header class="topbar">
     <div class="topbar-inner">
-      <a class="brand" href="./" aria-label="VoiceStick">
+      <a class="brand" href="./" aria-label="AgentStick">
         <span class="brand-mark" aria-hidden="true"></span>
-        <span>VoiceStick</span>
+        <span>AgentStick</span>
       </a>
       <nav>
         <a href="#flash">{{ t('nav.flash') }}</a>
@@ -292,7 +292,7 @@ async function flashFirmware() {
 
   <footer>
     <div class="section-inner footer-inner">
-      <span>VoiceStick</span>
+      <span>AgentStick</span>
       <a href="./appcast.xml">{{ t('footer.appcast') }}</a>
     </div>
   </footer>

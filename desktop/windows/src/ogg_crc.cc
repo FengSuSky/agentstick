@@ -2,7 +2,7 @@
 
 #include <array>
 
-namespace voicestick {
+namespace agentstick {
 
 std::uint32_t OggCRC::Checksum(std::span<const std::uint8_t> data) {
     static const auto table = [] {
@@ -24,4 +24,4 @@ std::uint32_t OggCRC::Checksum(std::span<const std::uint8_t> data) {
     return crc;
 }
 
-} // namespace voicestick
+} // namespace agentstick

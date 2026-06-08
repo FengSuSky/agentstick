@@ -1,4 +1,4 @@
-#include "voice_stick_cloud_api_win.h"
+#include "agent_stick_cloud_api_win.h"
 
 #include "cJSON.h"
 
@@ -11,7 +11,7 @@
 #include <string>
 #include <string_view>
 
-namespace voicestick {
+namespace agentstick {
 
 namespace {
 
@@ -76,7 +76,7 @@ std::optional<std::wstring> ApplyUrlFromWebSocketUrl(const std::string& websocke
         apply_url += L":";
         apply_url += std::to_wstring(components.nPort);
     }
-    apply_url += L"/voicestick/api-key/apply";
+    apply_url += L"/agentstick/api-key/apply";
     return apply_url;
 }
 
@@ -141,13 +141,13 @@ std::string JsonEscape(std::string_view text) {
 
 } // namespace
 
-VoiceStickCloudApplyResult ApplyVoiceStickCloudTrialApiKey(
+AgentStickCloudApplyResult ApplyAgentStickCloudTrialApiKey(
     const std::string& cloud_websocket_url,
     const std::string& device_id) {
-    VoiceStickCloudApplyResult result;
+    AgentStickCloudApplyResult result;
     const auto apply_url = ApplyUrlFromWebSocketUrl(cloud_websocket_url);
     if (!apply_url.has_value()) {
-        result.error = "Invalid VoiceStick Cloud URL.";
+        result.error = "Invalid AgentStick Cloud URL.";
         return result;
     }
 
@@ -158,17 +158,17 @@ VoiceStickCloudApplyResult ApplyVoiceStickCloudTrialApiKey(
     components.dwUrlPathLength = static_cast<DWORD>(-1);
     components.dwExtraInfoLength = static_cast<DWORD>(-1);
     if (!WinHttpCrackUrl(apply_url->c_str(), 0, 0, &components)) {
-        result.error = "Invalid VoiceStick Cloud URL.";
+        result.error = "Invalid AgentStick Cloud URL.";
         return result;
     }
 
-    HINTERNET session = WinHttpOpen(L"VoiceStick/Windows",
+    HINTERNET session = WinHttpOpen(L"AgentStick/Windows",
                                     WINHTTP_ACCESS_TYPE_DEFAULT_PROXY,
                                     WINHTTP_NO_PROXY_NAME,
                                     WINHTTP_NO_PROXY_BYPASS,
                                     0);
     if (!session) {
-        result.error = "Failed to start VoiceStick Cloud request: " + LastErrorText();
+        result.error = "Failed to start AgentStick Cloud request: " + LastErrorText();
         return result;
     }
     WinHttpSetTimeouts(session, 5000, 5000, 5000, 10000);
@@ -177,19 +177,19 @@ VoiceStickCloudApplyResult ApplyVoiceStickCloudTrialApiKey(
     HINTERNET connect = WinHttpConnect(session, host.c_str(), components.nPort, 0);
     if (!connect) {
         WinHttpCloseHandle(session);
-        result.error = "Failed to connect VoiceStick Cloud: " + LastErrorText();
+        result.error = "Failed to connect AgentStick Cloud: " + LastErrorText();
         return result;
     }
 
     std::wstring path(components.lpszUrlPath, components.dwUrlPathLength);
-    if (path.empty()) path = L"/voicestick/api-key/apply";
+    if (path.empty()) path = L"/agentstick/api-key/apply";
     const DWORD flags = components.nScheme == INTERNET_SCHEME_HTTPS ? WINHTTP_FLAG_SECURE : 0;
     HINTERNET request = WinHttpOpenRequest(connect, L"POST", path.c_str(), nullptr,
                                            WINHTTP_NO_REFERER, WINHTTP_DEFAULT_ACCEPT_TYPES, flags);
     if (!request) {
         WinHttpCloseHandle(connect);
         WinHttpCloseHandle(session);
-        result.error = "Failed to create VoiceStick Cloud request: " + LastErrorText();
+        result.error = "Failed to create AgentStick Cloud request: " + LastErrorText();
         return result;
     }
     WinHttpSetTimeouts(request, 5000, 5000, 5000, 10000);
@@ -211,7 +211,7 @@ VoiceStickCloudApplyResult ApplyVoiceStickCloudTrialApiKey(
         WinHttpCloseHandle(request);
         WinHttpCloseHandle(connect);
         WinHttpCloseHandle(session);
-        result.error = "VoiceStick Cloud request failed: " + LastErrorText();
+        result.error = "AgentStick Cloud request failed: " + LastErrorText();
         return result;
     }
 
@@ -235,10 +235,10 @@ VoiceStickCloudApplyResult ApplyVoiceStickCloudTrialApiKey(
 
     if (result.error.empty()) {
         result.error = status_code >= 400
-                           ? "VoiceStick Cloud request failed: HTTP " + std::to_string(status_code)
-                           : "VoiceStick Cloud returned an invalid response.";
+                           ? "AgentStick Cloud request failed: HTTP " + std::to_string(status_code)
+                           : "AgentStick Cloud returned an invalid response.";
     }
     return result;
 }
 
-} // namespace voicestick
+} // namespace agentstick

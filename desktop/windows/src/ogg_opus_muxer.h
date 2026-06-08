@@ -2,7 +2,7 @@
 
 #include "byte_utils.h"
 
-namespace voicestick {
+namespace agentstick {
 
 class OggOpusMuxer {
 public:
@@ -26,4 +26,4 @@ private:
     static constexpr std::uint32_t serial_ = 0x5653544b;
 };
 
-} // namespace voicestick
+} // namespace agentstick

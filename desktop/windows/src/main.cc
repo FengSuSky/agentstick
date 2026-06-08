@@ -11,7 +11,7 @@
 
 namespace {
 
-constexpr wchar_t kSingleInstanceMutexName[] = L"Local\\TenClass.VoiceStick.SingleInstance";
+constexpr wchar_t kSingleInstanceMutexName[] = L"Local\\TenClass.AgentStick.SingleInstance";
 
 class ScopedHandle {
 public:
@@ -35,26 +35,26 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int) {
     try {
         ScopedHandle single_instance_mutex(CreateMutexW(nullptr, TRUE, kSingleInstanceMutexName));
         if (!single_instance_mutex.get()) {
-            voicestick::LogApp("CreateMutexW failed");
+            agentstick::LogApp("CreateMutexW failed");
             return 1;
         }
         if (GetLastError() == ERROR_ALREADY_EXISTS) {
-            voicestick::LogApp("Another VoiceStick instance is already running");
+            agentstick::LogApp("Another AgentStick instance is already running");
             return 0;
         }
 
         SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
         winrt::init_apartment(winrt::apartment_type::single_threaded);
-        voicestick::Win32App app(instance);
+        agentstick::Win32App app(instance);
         return app.Run();
     } catch (const winrt::hresult_error& error) {
-        voicestick::LogApp("Fatal startup WinRT error: hr=" +
+        agentstick::LogApp("Fatal startup WinRT error: hr=" +
                            std::to_string(static_cast<std::int32_t>(error.code())) +
                            " message=" + winrt::to_string(error.message()));
     } catch (const std::exception& error) {
-        voicestick::LogApp(std::string("Fatal startup exception: ") + error.what());
+        agentstick::LogApp(std::string("Fatal startup exception: ") + error.what());
     } catch (...) {
-        voicestick::LogApp("Fatal startup unknown exception");
+        agentstick::LogApp("Fatal startup unknown exception");
     }
     return 1;
 }

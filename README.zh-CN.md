@@ -140,20 +140,20 @@ macOS 应用是 Swift / AppKit 菜单栏程序。
 ```sh
 cd desktop/macos
 swift build
-swift run VoiceStickApp
+swift run AgentStickApp
 ```
 
 当前配置文件路径仍沿用 VoiceStick：
 
 ```text
-~/Library/Application Support/VoiceStick/config.toml
+~/Library/Application Support/AgentStick/config.toml
 ```
 
 可从示例创建：
 
 ```sh
-mkdir -p "$HOME/Library/Application Support/VoiceStick"
-cp desktop/macos/Config/config.example.toml "$HOME/Library/Application Support/VoiceStick/config.toml"
+mkdir -p "$HOME/Library/Application Support/AgentStick"
+cp desktop/macos/Config/config.example.toml "$HOME/Library/Application Support/AgentStick/config.toml"
 ```
 
 常用配置：

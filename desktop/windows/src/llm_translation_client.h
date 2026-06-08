@@ -10,7 +10,7 @@
 #include <string_view>
 #include <vector>
 
-namespace voicestick {
+namespace agentstick {
 
 class LLMTranslationClient {
 public:
@@ -38,4 +38,4 @@ private:
     AppConfig config_;
 };
 
-} // namespace voicestick
+} // namespace agentstick

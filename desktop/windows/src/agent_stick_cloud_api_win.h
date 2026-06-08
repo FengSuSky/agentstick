@@ -2,9 +2,9 @@
 
 #include <string>
 
-namespace voicestick {
+namespace agentstick {
 
-struct VoiceStickCloudApplyResult {
+struct AgentStickCloudApplyResult {
     std::string api_key;
     std::string url;
     std::string error;
@@ -12,8 +12,8 @@ struct VoiceStickCloudApplyResult {
     bool ok() const { return !api_key.empty() || !url.empty(); }
 };
 
-VoiceStickCloudApplyResult ApplyVoiceStickCloudTrialApiKey(
+AgentStickCloudApplyResult ApplyAgentStickCloudTrialApiKey(
     const std::string& cloud_websocket_url,
     const std::string& device_id);
 
-} // namespace voicestick
+} // namespace agentstick

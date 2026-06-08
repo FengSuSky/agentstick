@@ -4,7 +4,7 @@
 #include <cctype>
 #include <charconv>
 
-namespace voicestick {
+namespace agentstick {
 
 namespace {
 
@@ -203,4 +203,4 @@ std::string BleProtocol::NormalizeDeviceId(std::string_view text) {
     return IsHex4(value) ? value : std::string();
 }
 
-} // namespace voicestick
+} // namespace agentstick

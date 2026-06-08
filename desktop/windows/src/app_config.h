@@ -8,10 +8,10 @@
 #include <string_view>
 #include <vector>
 
-namespace voicestick {
+namespace agentstick {
 
 enum class AsrProvider {
-    kVoiceStickCloud,
+    kAgentStickCloud,
     kVolcengine,
 };
 
@@ -73,9 +73,9 @@ struct OutputProfile {
 struct AppConfig {
     static constexpr std::string_view minimum_compatible_firmware_version = "0.3.0";
 
-    AsrProvider asr_provider = AsrProvider::kVoiceStickCloud;
-    std::string voicestick_api_key;
-    std::string voicestick_cloud_url = "wss://api.xiaozhi.me/voicestick/asr/";
+    AsrProvider asr_provider = AsrProvider::kAgentStickCloud;
+    std::string agentstick_api_key;
+    std::string agentstick_cloud_url = "wss://api.xiaozhi.me/agentstick/asr/";
     std::string volcengine_api_key;
     std::string llm_base_url = "https://api.openai.com/v1";
     std::string llm_api_key;
@@ -130,4 +130,4 @@ std::string TextTransformDisplayName(TextTransform transform);
 std::vector<std::string> ParseDeviceIdList(std::string_view text);
 std::vector<std::string> ParseHotwordList(std::string_view text);
 
-} // namespace voicestick
+} // namespace agentstick

@@ -1,6 +1,6 @@
 #include "settings_dialog.h"
 #include "dpi_util.h"
-#include "voice_stick_cloud_api_win.h"
+#include "agent_stick_cloud_api_win.h"
 
 #include <ShlObj.h>
 #include <CommCtrl.h>
@@ -12,7 +12,7 @@
 #include <utility>
 #include <vector>
 
-namespace voicestick {
+namespace agentstick {
 
 namespace {
 
@@ -190,7 +190,7 @@ INT_PTR SettingsDialog::HandleMessage(UINT message, WPARAM w_param, LPARAM l_par
         case kIdProviderCombo:
             if (HIWORD(w_param) == CBN_SELCHANGE) {
                 int idx = static_cast<int>(SendMessageW(provider_combo_, CB_GETCURSEL, 0, 0));
-                const auto& key = idx == 0 ? config_.voicestick_api_key : config_.volcengine_api_key;
+                const auto& key = idx == 0 ? config_.agentstick_api_key : config_.volcengine_api_key;
                 SetWindowTextW(api_key_edit_, Utf16(key).c_str());
                 UpdateProviderVisibility();
             }
@@ -262,7 +262,7 @@ LPCDLGTEMPLATE SettingsDialog::BuildDialogTemplate() {
     AppendDialogData(&dialog_template_, &dialog_template, sizeof(dialog_template));
     AppendDialogWord(&dialog_template_, 0);
     AppendDialogWord(&dialog_template_, 0);
-    AppendDialogWideString(&dialog_template_, L"VoiceStick Settings");
+    AppendDialogWideString(&dialog_template_, L"AgentStick Settings");
     AppendDialogWord(&dialog_template_, 9);
     AppendDialogWideString(&dialog_template_, L"Segoe UI");
     return reinterpret_cast<LPCDLGTEMPLATE>(dialog_template_.data());
@@ -328,7 +328,7 @@ void SettingsDialog::BuildControls() {
                                Dp(20), instance_));
     provider_combo_ = remember(CreateCombo(hwnd_, ctrl_x, y, ctrl_w, Dp(200),
                                            kIdProviderCombo, instance_));
-    SendMessageW(provider_combo_, CB_ADDSTRING, 0, reinterpret_cast<LPARAM>(L"VoiceStick Cloud"));
+    SendMessageW(provider_combo_, CB_ADDSTRING, 0, reinterpret_cast<LPARAM>(L"AgentStick Cloud"));
     SendMessageW(provider_combo_, CB_ADDSTRING, 0, reinterpret_cast<LPARAM>(L"Volcengine"));
     y += row_h + Dp(10);
 
@@ -409,10 +409,10 @@ void SettingsDialog::BuildControls() {
 
 void SettingsDialog::LoadConfigIntoControls() {
     SendMessageW(provider_combo_, CB_SETCURSEL,
-                 config_.asr_provider == AsrProvider::kVoiceStickCloud ? 0 : 1, 0);
+                 config_.asr_provider == AsrProvider::kAgentStickCloud ? 0 : 1, 0);
 
-    const auto& key = config_.asr_provider == AsrProvider::kVoiceStickCloud
-                          ? config_.voicestick_api_key
+    const auto& key = config_.asr_provider == AsrProvider::kAgentStickCloud
+                          ? config_.agentstick_api_key
                           : config_.volcengine_api_key;
     SetWindowTextW(api_key_edit_, Utf16(key).c_str());
 
@@ -434,12 +434,12 @@ void SettingsDialog::LoadConfigIntoControls() {
 
 void SettingsDialog::SaveSettings() {
     int provider_idx = static_cast<int>(SendMessageW(provider_combo_, CB_GETCURSEL, 0, 0));
-    AsrProvider new_provider = (provider_idx == 0) ? AsrProvider::kVoiceStickCloud
+    AsrProvider new_provider = (provider_idx == 0) ? AsrProvider::kAgentStickCloud
                                                    : AsrProvider::kVolcengine;
 
     auto api_key = Utf8(GetWindowText(api_key_edit_));
-    if (new_provider == AsrProvider::kVoiceStickCloud) {
-        config_.voicestick_api_key = api_key;
+    if (new_provider == AsrProvider::kAgentStickCloud) {
+        config_.agentstick_api_key = api_key;
     } else {
         config_.volcengine_api_key = api_key;
     }
@@ -496,7 +496,7 @@ void SettingsDialog::ApplyTrialApiKey() {
     const std::string device_id = config_.paired_device_ids.empty()
                                       ? std::string()
                                       : config_.paired_device_ids.front();
-    auto result = ApplyVoiceStickCloudTrialApiKey(config_.voicestick_cloud_url, device_id);
+    auto result = ApplyAgentStickCloudTrialApiKey(config_.agentstick_cloud_url, device_id);
 
     SetWindowTextW(apply_trial_button_, L"Apply Trial");
     EnableWindow(apply_trial_button_, TRUE);
@@ -512,7 +512,7 @@ void SettingsDialog::ApplyTrialApiKey() {
         auto* shell_result = ShellExecuteW(hwnd_, L"open", wide_url.c_str(),
                                            nullptr, nullptr, SW_SHOWNORMAL);
         if (reinterpret_cast<INT_PTR>(shell_result) <= 32) {
-            MessageBoxW(hwnd_, L"Could not open the VoiceStick Cloud signup page.",
+            MessageBoxW(hwnd_, L"Could not open the AgentStick Cloud signup page.",
                         L"Could Not Apply Trial API Key", MB_ICONERROR | MB_OK);
         }
         UpdateProviderVisibility();
@@ -564,7 +564,7 @@ bool SettingsDialog::IsLabelControl(HWND control) const {
 }
 
 int SettingsDialog::Dp(int px) const {
-    return voicestick::ScalePx(px, dpi_);
+    return agentstick::ScalePx(px, dpi_);
 }
 
-} // namespace voicestick
+} // namespace agentstick

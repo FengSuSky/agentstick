@@ -25,7 +25,7 @@
 
 主要变化：
 
-- 新增 `VOICESTICK_BOARD_M5STACK_STICKS3` / `VOICESTICK_BOARD_LICHUANG_ESP32S3` 板型选择。
+- 新增 `AGENTSTICK_BOARD_M5STACK_STICKS3` / `AGENTSTICK_BOARD_LICHUANG_ESP32S3` 板型选择。
 - I2C 改为立创板连接：SDA `GPIO1`，SCL `GPIO2`。
 - 主按键改为 BOOT / 用户键：`GPIO0`，低电平按下。
 - 侧键当前未定义，`stick_s3_side_button_pressed()` 固定返回 `false`。
@@ -110,9 +110,9 @@
 
 相关文件：
 
-- `desktop/macos/Sources/VoiceStickApp/AppConfig.swift`
-- `desktop/macos/Sources/VoiceStickApp/ASRWebSocketClient.swift`
-- `desktop/macos/Sources/VoiceStickApp/SettingsWindowController.swift`
+- `desktop/macos/Sources/AgentStickApp/AppConfig.swift`
+- `desktop/macos/Sources/AgentStickApp/ASRWebSocketClient.swift`
+- `desktop/macos/Sources/AgentStickApp/SettingsWindowController.swift`
 - `desktop/macos/Config/config.example.toml`
 
 主要变化：
@@ -127,7 +127,7 @@
 用户当前本机配置位于：
 
 ```text
-/Users/fengsu/Library/Application Support/VoiceStick/config.toml
+/Users/fengsu/Library/Application Support/AgentStick/config.toml
 ```
 
 关键配置：
@@ -160,8 +160,8 @@ transform = "original"
 已生成并验证过的本地包：
 
 ```text
-/Users/fengsu/work/voicestick/build/VoiceStick-0.3.4.app
-/Users/fengsu/work/voicestick/build/VoiceStick-0.3.4.dmg
+/Users/fengsu/work/agentstick/build/AgentStick-0.3.4.app
+/Users/fengsu/work/agentstick/build/AgentStick-0.3.4.dmg
 ```
 
 ## 4. 当前已验证
@@ -197,7 +197,7 @@ idf.py -B build-m5stack \
 
 ## 5. 当前行为说明
 
-- VoiceStick 的自动粘贴逻辑会临时写入剪贴板、发送 `Cmd+V`，然后恢复原剪贴板；它不是“把识别结果永久复制到剪贴板”。
+- AgentStick 的自动粘贴逻辑会临时写入剪贴板、发送 `Cmd+V`，然后恢复原剪贴板；它不是“把识别结果永久复制到剪贴板”。
 - `Press Return After Paste` 会在粘贴后发送 Return，适合搜索框或命令框，但在聊天软件里会自动发送消息。
 - 因为立创板没有独立侧键，涉及 `Front: Send / Side: Cancel` 的交互在这块板上需要重新设计。
 

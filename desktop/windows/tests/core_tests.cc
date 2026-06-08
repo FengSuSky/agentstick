@@ -3,7 +3,7 @@
 #include "byte_utils.h"
 #include "firmware_manifest.h"
 #include "ogg_opus_muxer.h"
-#include "voice_stick_coordinator.h"
+#include "agent_stick_coordinator.h"
 
 #include <algorithm>
 #include <cassert>
@@ -17,7 +17,7 @@
 #include <utility>
 #include <vector>
 
-using namespace voicestick;
+using namespace agentstick;
 
 namespace {
 
@@ -90,7 +90,7 @@ public:
     AsrSessionOptions last_options;
 };
 
-class FakeUi : public VoiceStickUi {
+class FakeUi : public AgentStickUi {
 public:
     void SetStatus(const std::string& status) override {
         statuses.push_back(status);
@@ -290,7 +290,7 @@ void TestOggMuxer() {
 
 void TestAsrProtocol() {
     AppConfig config = AppConfig::Defaults();
-    config.asr_hotwords = {"小智", "VoiceStick"};
+    config.asr_hotwords = {"小智", "AgentStick"};
     auto event_payload = [](const ByteVector& frame, const std::string& session_id) {
         const std::size_t payload_size_offset = 12 + session_id.size();
         const auto payload_size = ReadBe32(std::span(frame.data() + payload_size_offset, 4));
@@ -309,10 +309,10 @@ void TestAsrProtocol() {
     const auto payload = event_payload(request, payload_session_id);
     assert(payload.find("\"corpus\"") != std::string::npos);
     assert(payload.find("\\\"hotwords\\\"") != std::string::npos);
-    assert(payload.find("\\\"word\\\":\\\"VoiceStick\\\"") != std::string::npos);
+    assert(payload.find("\\\"word\\\":\\\"AgentStick\\\"") != std::string::npos);
 
     const std::string body =
-        "{\"error\":\"invalid_token\",\"message\":\"VoiceStick Cloud API key is invalid.\","
+        "{\"error\":\"invalid_token\",\"message\":\"AgentStick Cloud API key is invalid.\","
         "\"upgrade_url\":\"https://example.test/upgrade\"}";
     ByteVector response = {0x11, 0xf0, 0x10, 0x00};
     AppendBe32(response, 44002);
@@ -321,7 +321,7 @@ void TestAsrProtocol() {
     auto parsed = AsrProtocol::ParseResponse(response);
     assert(parsed.has_value());
     assert(parsed->is_error);
-    assert(parsed->text == "ASR 44002: VoiceStick Cloud API key is invalid.");
+    assert(parsed->text == "ASR 44002: AgentStick Cloud API key is invalid.");
     assert(parsed->upgrade_url && *parsed->upgrade_url == "https://example.test/upgrade");
 
     auto start_connection = AsrProtocol::MakeStartConnectionFrame(config);
@@ -356,7 +356,7 @@ void TestAsrProtocol() {
     assert(AsrProtocol::ExtractTranscript(parsed_event->payload_text) == "hi");
 
     AsrSessionOptions options;
-    options.hotwords = {"VoiceStick"};
+    options.hotwords = {"AgentStick"};
     options.show_utterances = true;
     options.result_type = AsrResultType::kSingle;
     const std::string utterance_session_id = "utterance-session";
@@ -381,12 +381,12 @@ void TestAsrProtocol() {
 
 void TestAppConfig() {
     AppConfig cloud = AppConfig::Defaults();
-    assert(cloud.asr_provider == AsrProvider::kVoiceStickCloud);
-    cloud.asr_provider = AsrProvider::kVoiceStickCloud;
-    cloud.voicestick_cloud_url = "";
-    assert(cloud.ActiveWebsocketUrl() == "wss://api.xiaozhi.me/voicestick/asr/");
+    assert(cloud.asr_provider == AsrProvider::kAgentStickCloud);
+    cloud.asr_provider = AsrProvider::kAgentStickCloud;
+    cloud.agentstick_cloud_url = "";
+    assert(cloud.ActiveWebsocketUrl() == "wss://api.xiaozhi.me/agentstick/asr/");
 
-    cloud.voicestick_cloud_url = "  wss://example.test/asr?token=1  ";
+    cloud.agentstick_cloud_url = "  wss://example.test/asr?token=1  ";
     assert(cloud.ActiveWebsocketUrl() == "wss://example.test/asr?token=1");
 
     AppConfig volcengine = AppConfig::Defaults();
@@ -424,8 +424,8 @@ void TestAppConfig() {
     assert(profile.translation_target == "zh-Hans");
     assert(OutputTargetName(OutputTarget::kFocusedApp) == "focused_app");
     assert(TextTransformFromName("translate") == TextTransform::kTranslate);
-    const auto hotwords = ParseHotwordList(" 小智,VoiceStick\r\n小智\n豆包 ");
-    assert((hotwords == std::vector<std::string>{"小智", "VoiceStick", "豆包"}));
+    const auto hotwords = ParseHotwordList(" 小智,AgentStick\r\n小智\n豆包 ");
+    assert((hotwords == std::vector<std::string>{"小智", "AgentStick", "豆包"}));
 }
 
 void TestFirmwareManifestParsingAndVersionCompare() {
@@ -453,7 +453,7 @@ void TestCoordinatorCancelsShortPrimaryPress() {
     auto* asr_ptr = asr.get();
     FakeUi ui;
     FakeInputInjector input;
-    VoiceStickCoordinator coordinator(AppConfig::Defaults(), std::move(ble), std::move(asr), &ui, &input);
+    AgentStickCoordinator coordinator(AppConfig::Defaults(), std::move(ble), std::move(asr), &ui, &input);
     coordinator.Start();
 
     ble_ptr->on_state_event("5A74", ButtonEvent("button_down", "primary", 42));
@@ -473,7 +473,7 @@ void TestCoordinatorPrimaryDuringFinalizingRefreshesThinking() {
     auto* asr_ptr = asr.get();
     FakeUi ui;
     FakeInputInjector input;
-    VoiceStickCoordinator coordinator(AppConfig::Defaults(), std::move(ble), std::move(asr), &ui, &input);
+    AgentStickCoordinator coordinator(AppConfig::Defaults(), std::move(ble), std::move(asr), &ui, &input);
     coordinator.Start();
 
     ble_ptr->on_state_event("5A74", ButtonEvent("button_down", "primary", 7));
@@ -501,7 +501,7 @@ void TestCoordinatorSecondaryCancelsFinalizing() {
     auto* asr_ptr = asr.get();
     FakeUi ui;
     FakeInputInjector input;
-    VoiceStickCoordinator coordinator(AppConfig::Defaults(), std::move(ble), std::move(asr), &ui, &input);
+    AgentStickCoordinator coordinator(AppConfig::Defaults(), std::move(ble), std::move(asr), &ui, &input);
     coordinator.Start();
 
     ble_ptr->on_state_event("5A74", ButtonEvent("button_down", "primary", 8));
@@ -523,7 +523,7 @@ void TestCoordinatorAcceptsAudioFramesAfterButtonUpUntilEnd() {
     auto* asr_ptr = asr.get();
     FakeUi ui;
     FakeInputInjector input;
-    VoiceStickCoordinator coordinator(AppConfig::Defaults(), std::move(ble), std::move(asr), &ui, &input);
+    AgentStickCoordinator coordinator(AppConfig::Defaults(), std::move(ble), std::move(asr), &ui, &input);
     coordinator.Start();
 
     ble_ptr->on_state_event("5A74", ButtonEvent("button_down", "primary", 14));
@@ -548,7 +548,7 @@ void TestCoordinatorPrimaryPausesPendingConfirmation() {
     auto* asr_ptr = asr.get();
     FakeUi ui;
     FakeInputInjector input;
-    VoiceStickCoordinator coordinator(AppConfig::Defaults(), std::move(ble), std::move(asr), &ui, &input);
+    AgentStickCoordinator coordinator(AppConfig::Defaults(), std::move(ble), std::move(asr), &ui, &input);
     coordinator.Start();
 
     ble_ptr->on_state_event("5A74", ButtonEvent("button_down", "primary", 9));
@@ -574,7 +574,7 @@ void TestCoordinatorOtherDeviceDuringRecordingGetsReady() {
     auto asr = std::make_unique<FakeAsrClient>();
     FakeUi ui;
     FakeInputInjector input;
-    VoiceStickCoordinator coordinator(AppConfig::Defaults(), std::move(ble), std::move(asr), &ui, &input);
+    AgentStickCoordinator coordinator(AppConfig::Defaults(), std::move(ble), std::move(asr), &ui, &input);
     coordinator.Start();
 
     ble_ptr->on_state_event("5A74", ButtonEvent("button_down", "primary", 10));
@@ -598,7 +598,7 @@ void TestCoordinatorSubtitleOutputSkipsPaste() {
     config.default_output_profile.target = OutputTarget::kSubtitle;
     config.interaction_mode = InteractionMode::kClickToTalk;
     config.device_theme_colors["5A74"] = OverlayThemeColor::kBlue;
-    VoiceStickCoordinator coordinator(
+    AgentStickCoordinator coordinator(
         config,
         std::move(ble),
         std::move(primary_asr),
@@ -648,7 +648,7 @@ void TestCoordinatorSubtitleFinalDoesNotBlockNextSession() {
     config.default_output_profile.target = OutputTarget::kSubtitle;
     config.interaction_mode = InteractionMode::kHoldToTalk;
     config.device_theme_colors["5A74"] = OverlayThemeColor::kBlue;
-    VoiceStickCoordinator coordinator(
+    AgentStickCoordinator coordinator(
         config,
         std::move(ble),
         std::move(primary_asr),
@@ -699,7 +699,7 @@ void TestCoordinatorShortSubtitleEndReturnsReady() {
     AppConfig config = AppConfig::Defaults();
     config.default_output_profile.target = OutputTarget::kSubtitle;
     config.interaction_mode = InteractionMode::kHoldToTalk;
-    VoiceStickCoordinator coordinator(
+    AgentStickCoordinator coordinator(
         config,
         std::move(ble),
         std::move(primary_asr),
@@ -730,7 +730,7 @@ void TestCoordinatorClickToTalkPrimaryClickTogglesRecording() {
     FakeInputInjector input;
     AppConfig config = AppConfig::Defaults();
     config.interaction_mode = InteractionMode::kClickToTalk;
-    VoiceStickCoordinator coordinator(config, std::move(ble), std::move(asr), &ui, &input);
+    AgentStickCoordinator coordinator(config, std::move(ble), std::move(asr), &ui, &input);
     coordinator.Start();
 
     ble_ptr->on_state_event("5A74", ButtonEvent("button_click", "primary", 21));
@@ -753,7 +753,7 @@ void TestCoordinatorMainPartialSentToDeviceOnlyAfterFinalAudio() {
     auto* asr_ptr = asr.get();
     FakeUi ui;
     FakeInputInjector input;
-    VoiceStickCoordinator coordinator(AppConfig::Defaults(), std::move(ble), std::move(asr), &ui, &input);
+    AgentStickCoordinator coordinator(AppConfig::Defaults(), std::move(ble), std::move(asr), &ui, &input);
     coordinator.Start();
 
     ble_ptr->on_state_event("5A74", ButtonEvent("button_down", "primary", 22));
@@ -781,7 +781,7 @@ void TestCoordinatorShowsDetailedAsrStartError() {
     asr_ptr->start_error = "Missing ASR API key";
     FakeUi ui;
     FakeInputInjector input;
-    VoiceStickCoordinator coordinator(AppConfig::Defaults(), std::move(ble), std::move(asr), &ui, &input);
+    AgentStickCoordinator coordinator(AppConfig::Defaults(), std::move(ble), std::move(asr), &ui, &input);
     coordinator.Start();
 
     ble_ptr->on_state_event("5A74", ButtonEvent("button_down", "primary", 23));
@@ -802,7 +802,7 @@ void TestCoordinatorCloudUpgradeRecoversDeviceAfterAsrError() {
     auto* asr_ptr = asr.get();
     FakeUi ui;
     FakeInputInjector input;
-    VoiceStickCoordinator coordinator(AppConfig::Defaults(), std::move(ble), std::move(asr), &ui, &input);
+    AgentStickCoordinator coordinator(AppConfig::Defaults(), std::move(ble), std::move(asr), &ui, &input);
     coordinator.Start();
 
     ble_ptr->on_state_event("5A74", ButtonEvent("button_down", "primary", 24));
@@ -810,11 +810,11 @@ void TestCoordinatorCloudUpgradeRecoversDeviceAfterAsrError() {
     std::this_thread::sleep_for(std::chrono::milliseconds(520));
     ble_ptr->on_state_event("5A74", ButtonEvent("button_up", "primary", 24));
     ble_ptr->on_audio_frame("5A74", EmptyEndFrame(24, 2));
-    asr_ptr->on_error("ASR 44002: VoiceStick Cloud API key is invalid.");
+    asr_ptr->on_error("ASR 44002: AgentStick Cloud API key is invalid.");
     asr_ptr->on_upgrade_url("https://example.test/upgrade",
-                            "ASR 44002: VoiceStick Cloud API key is invalid.");
+                            "ASR 44002: AgentStick Cloud API key is invalid.");
 
-    assert(HasUiStateText(*ble_ptr, "error", "ASR 44002: VoiceStick Cloud API key is invalid.", "5A74"));
+    assert(HasUiStateText(*ble_ptr, "error", "ASR 44002: AgentStick Cloud API key is invalid.", "5A74"));
     assert(HasUiState(*ble_ptr, "ready", "5A74"));
     assert(!ui.cloud_upgrades.empty());
 }

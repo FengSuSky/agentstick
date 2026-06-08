@@ -1,6 +1,6 @@
-# VoiceStick Release Process
+# AgentStick Release Process
 
-VoiceStick releases have three moving parts:
+AgentStick releases have three moving parts:
 
 - macOS app: built, signed, notarized, and uploaded by GitHub Actions.
 - StickS3 firmware: built by GitHub Actions and uploaded to Aliyun OSS and GitHub Releases.
@@ -40,25 +40,25 @@ The GitHub Actions release workflow validates that `v<VERSION>` matches the push
 4. Push the release tag:
 
 ```sh
-git tag -a v0.2.4 -m "VoiceStick 0.2.4"
+git tag -a v0.2.4 -m "AgentStick 0.2.4"
 git push origin main
 git push origin v0.2.4
 ```
 
 Pushing the tag runs `.github/workflows/release.yml`. That workflow builds:
 
-- `VoiceStick-<version>.dmg`
-- `VoiceStick-<version>.zip`
-- `VoiceStick-<version>.signature`
-- `voicestick-firmware-sticks3-ota-<version>.bin`
-- `voicestick-firmware-sticks3-merged-<version>.bin`
+- `AgentStick-<version>.dmg`
+- `AgentStick-<version>.zip`
+- `AgentStick-<version>.signature`
+- `agentstick-firmware-sticks3-ota-<version>.bin`
+- `agentstick-firmware-sticks3-merged-<version>.bin`
 - firmware checksums and `manifest.json`
 
 It also uploads the firmware to Aliyun OSS under both:
 
 ```text
-voicestick/firmwares/<version>/
-voicestick/firmwares/latest/
+agentstick/firmwares/<version>/
+agentstick/firmwares/latest/
 ```
 
 After publishing the GitHub Release, the workflow requests a website deploy so the appcast is refreshed.
@@ -77,7 +77,7 @@ scripts\build-msi.bat
 The output is:
 
 ```text
-desktop\windows\build-msi-x64\VoiceStick_<version>.msi
+desktop\windows\build-msi-x64\AgentStick_<version>.msi
 ```
 
 3. Confirm `firmware/version.txt` also matches the new version.
@@ -86,7 +86,7 @@ desktop\windows\build-msi-x64\VoiceStick_<version>.msi
 6. Upload the signed MSI to the same GitHub Release:
 
 ```sh
-gh release upload v0.2.4 desktop/windows/build-msi-x64/VoiceStick_0.2.4.msi --repo 78/voicestick
+gh release upload v0.2.4 desktop/windows/build-msi-x64/AgentStick_0.2.4.msi --repo 78/voicestick
 ```
 
 7. Re-run the website deploy workflow so the appcast includes the Windows MSI:
@@ -111,7 +111,7 @@ scripts\build-msi.bat
 5. Upload the signed MSI to the already published GitHub Release:
 
 ```sh
-gh release upload v0.2.4 desktop/windows/build-msi-x64/VoiceStick_0.2.4.msi --repo 78/voicestick
+gh release upload v0.2.4 desktop/windows/build-msi-x64/AgentStick_0.2.4.msi --repo 78/voicestick
 ```
 
 6. Re-run the website deploy workflow:
@@ -129,34 +129,34 @@ After every release, verify the appcast, firmware manifest, and actual package U
 Stable update endpoints:
 
 ```text
-https://78.github.io/voicestick/appcast.xml
-https://xiaozhi-voice-assistant.oss-cn-shenzhen.aliyuncs.com/voicestick/firmwares/latest/manifest.json
+https://78.github.io/agentstick/appcast.xml
+https://xiaozhi-voice-assistant.oss-cn-shenzhen.aliyuncs.com/agentstick/firmwares/latest/manifest.json
 ```
 
 For version `0.2.4`, the appcast should contain:
 
 ```text
-https://github.com/78/voicestick/releases/download/v0.2.4/VoiceStick_0.2.4.msi
-https://github.com/78/voicestick/releases/download/v0.2.4/VoiceStick-0.2.4.zip
+https://github.com/78/voicestick/releases/download/v0.2.4/AgentStick_0.2.4.msi
+https://github.com/78/voicestick/releases/download/v0.2.4/AgentStick-0.2.4.zip
 ```
 
 The firmware manifest should contain:
 
 ```text
-https://xiaozhi-voice-assistant.oss-cn-shenzhen.aliyuncs.com/voicestick/firmwares/0.2.4/voicestick-firmware-sticks3-ota-0.2.4.bin
-https://xiaozhi-voice-assistant.oss-cn-shenzhen.aliyuncs.com/voicestick/firmwares/0.2.4/voicestick-firmware-sticks3-merged-0.2.4.bin
+https://xiaozhi-voice-assistant.oss-cn-shenzhen.aliyuncs.com/agentstick/firmwares/0.2.4/agentstick-firmware-sticks3-ota-0.2.4.bin
+https://xiaozhi-voice-assistant.oss-cn-shenzhen.aliyuncs.com/agentstick/firmwares/0.2.4/agentstick-firmware-sticks3-merged-0.2.4.bin
 ```
 
 Use `HEAD` requests or a browser to confirm every URL returns `200`.
 
 ```powershell
-Invoke-WebRequest -UseBasicParsing https://78.github.io/voicestick/appcast.xml
-Invoke-WebRequest -UseBasicParsing https://xiaozhi-voice-assistant.oss-cn-shenzhen.aliyuncs.com/voicestick/firmwares/latest/manifest.json
+Invoke-WebRequest -UseBasicParsing https://78.github.io/agentstick/appcast.xml
+Invoke-WebRequest -UseBasicParsing https://xiaozhi-voice-assistant.oss-cn-shenzhen.aliyuncs.com/agentstick/firmwares/latest/manifest.json
 
-Invoke-WebRequest -UseBasicParsing -Method Head https://github.com/78/voicestick/releases/download/v0.2.4/VoiceStick_0.2.4.msi
-Invoke-WebRequest -UseBasicParsing -Method Head https://github.com/78/voicestick/releases/download/v0.2.4/VoiceStick-0.2.4.zip
-Invoke-WebRequest -UseBasicParsing -Method Head https://xiaozhi-voice-assistant.oss-cn-shenzhen.aliyuncs.com/voicestick/firmwares/0.2.4/voicestick-firmware-sticks3-ota-0.2.4.bin
-Invoke-WebRequest -UseBasicParsing -Method Head https://xiaozhi-voice-assistant.oss-cn-shenzhen.aliyuncs.com/voicestick/firmwares/0.2.4/voicestick-firmware-sticks3-merged-0.2.4.bin
+Invoke-WebRequest -UseBasicParsing -Method Head https://github.com/78/voicestick/releases/download/v0.2.4/AgentStick_0.2.4.msi
+Invoke-WebRequest -UseBasicParsing -Method Head https://github.com/78/voicestick/releases/download/v0.2.4/AgentStick-0.2.4.zip
+Invoke-WebRequest -UseBasicParsing -Method Head https://xiaozhi-voice-assistant.oss-cn-shenzhen.aliyuncs.com/agentstick/firmwares/0.2.4/agentstick-firmware-sticks3-ota-0.2.4.bin
+Invoke-WebRequest -UseBasicParsing -Method Head https://xiaozhi-voice-assistant.oss-cn-shenzhen.aliyuncs.com/agentstick/firmwares/0.2.4/agentstick-firmware-sticks3-merged-0.2.4.bin
 ```
 
 Also confirm these workflow runs are successful:

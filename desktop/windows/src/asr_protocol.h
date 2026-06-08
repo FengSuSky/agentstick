@@ -8,7 +8,7 @@
 #include <string>
 #include <vector>
 
-namespace voicestick {
+namespace agentstick {
 
 enum class AsrEvent : std::uint32_t {
     kStartConnection = 1,
@@ -97,4 +97,4 @@ private:
                                       std::span<const std::uint8_t> payload);
 };
 
-} // namespace voicestick
+} // namespace agentstick

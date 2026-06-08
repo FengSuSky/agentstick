@@ -1,15 +1,15 @@
-menu "VoiceStick board"
+menu "AgentStick board"
 
-choice VOICESTICK_BOARD
-    prompt "VoiceStick hardware board"
-    default VOICESTICK_BOARD_M5STACK_STICKS3
+choice AGENTSTICK_BOARD
+    prompt "AgentStick hardware board"
+    default AGENTSTICK_BOARD_M5STACK_STICKS3
     help
         Select the ESP32-S3 board variant used by this firmware build.
 
-config VOICESTICK_BOARD_M5STACK_STICKS3
+config AGENTSTICK_BOARD_M5STACK_STICKS3
     bool "M5Stack StickS3"
 
-config VOICESTICK_BOARD_LICHUANG_ESP32S3
+config AGENTSTICK_BOARD_LICHUANG_ESP32S3
     bool "Lichuang ESP32-S3 development board"
 
 endchoice

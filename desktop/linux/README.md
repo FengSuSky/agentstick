@@ -1,4 +1,4 @@
-# VoiceStick Linux
+# AgentStick Linux
 
 Linux implementation workspace.
 

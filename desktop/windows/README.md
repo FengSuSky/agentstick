@@ -1,10 +1,10 @@
-# VoiceStick Windows
+# AgentStick Windows
 
 Native Win32/C++20 implementation workspace for the Windows desktop client.
 
 ## Windows support
 
-VoiceStick supports 64-bit Windows 10 version 1903 / 1909 and newer across
+AgentStick supports 64-bit Windows 10 version 1903 / 1909 and newer across
 normal Windows 10 editions, including Education. Newer builds expose the BLE
 advertisement address type directly; 2019 Windows 10 builds fall back to the
 address-only BLE connection path.
@@ -12,10 +12,10 @@ address-only BLE connection path.
 Current scope:
 
 - Win32 tray app shell with overlay window.
-- Windows config at `%APPDATA%\VoiceStick\config.toml`.
-- Debug audio cache at `%LOCALAPPDATA%\VoiceStick\DebugAudio`.
+- Windows config at `%APPDATA%\AgentStick\config.toml`.
+- Debug audio cache at `%LOCALAPPDATA%\AgentStick\DebugAudio`.
 - BLE advertisement scanning through C++/WinRT.
-- Core VoiceStick protocol parsing, Ogg Opus muxing, ASR binary framing, and coordinator state machine.
+- Core AgentStick protocol parsing, Ogg Opus muxing, ASR binary framing, and coordinator state machine.
 - Text insertion through clipboard plus `SendInput`.
 - App self-update checks through WinSparkle, using the same appcast feed as the macOS Sparkle updater.
 
@@ -39,7 +39,7 @@ cmd /c 'call "C:\Program Files\Microsoft Visual Studio\18\Community\VC\Auxiliary
 Run:
 
 ```powershell
-desktop\windows\build-x64\VoiceStick.exe
+desktop\windows\build-x64\AgentStick.exe
 ```
 
 Build a signed MSI locally:
@@ -49,7 +49,7 @@ $env:SIGNING_SHA1 = "YOUR_CERT_THUMBPRINT"
 scripts\build-msi.bat
 ```
 
-Upload `desktop\windows\build-msi-x64\VoiceStick_<version>.msi` to the matching GitHub Release, then manually run the `Deploy Website to GitHub Pages` workflow. The MSI is the WinSparkle update package; the appcast entry records the GitHub Release MSI URL, byte length, version, Windows OS marker, and `/passive` installer argument.
+Upload `desktop\windows\build-msi-x64\AgentStick_<version>.msi` to the matching GitHub Release, then manually run the `Deploy Website to GitHub Pages` workflow. The MSI is the WinSparkle update package; the appcast entry records the GitHub Release MSI URL, byte length, version, Windows OS marker, and `/passive` installer argument.
 
 If an older `desktop\windows\build` directory was configured from the wrong Visual Studio environment, delete it or ignore it. Mixing an x86 CMake cache with x64 SDK libraries causes link errors.
 

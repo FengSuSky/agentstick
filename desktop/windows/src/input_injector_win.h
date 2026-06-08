@@ -1,12 +1,12 @@
 #pragma once
 
-#include "voice_stick_coordinator.h"
+#include "agent_stick_coordinator.h"
 
 #include <Windows.h>
 
 #include <string>
 
-namespace voicestick {
+namespace agentstick {
 
 class InputInjectorWin : public InputInjector {
 public:
@@ -19,4 +19,4 @@ private:
     static void SendEnter();
 };
 
-} // namespace voicestick
+} // namespace agentstick

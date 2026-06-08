@@ -5,7 +5,7 @@
 
 #pragma comment(lib, "Shcore.lib")
 
-namespace voicestick {
+namespace agentstick {
 
 inline UINT GetDpiForHwnd(HWND hwnd) {
     if (hwnd) {
@@ -52,4 +52,4 @@ inline HFONT CreateUiFont(UINT dpi) {
     return reinterpret_cast<HFONT>(GetStockObject(DEFAULT_GUI_FONT));
 }
 
-} // namespace voicestick
+} // namespace agentstick

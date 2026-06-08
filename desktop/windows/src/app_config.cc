@@ -16,7 +16,7 @@
 #include <sstream>
 #include <stdexcept>
 
-namespace voicestick {
+namespace agentstick {
 
 namespace {
 
@@ -168,7 +168,7 @@ const std::vector<std::string>& AppConfig::SupportedResourceIds() {
 }
 
 std::filesystem::path AppConfig::ConfigDirectory() {
-    return KnownFolder(FOLDERID_RoamingAppData, L"APPDATA") / L"VoiceStick";
+    return KnownFolder(FOLDERID_RoamingAppData, L"APPDATA") / L"AgentStick";
 }
 
 std::filesystem::path AppConfig::ConfigPath() {
@@ -176,7 +176,7 @@ std::filesystem::path AppConfig::ConfigPath() {
 }
 
 std::filesystem::path AppConfig::DefaultDebugAudioDirectory() {
-    return KnownFolder(FOLDERID_LocalAppData, L"LOCALAPPDATA") / L"VoiceStick" / L"DebugAudio";
+    return KnownFolder(FOLDERID_LocalAppData, L"LOCALAPPDATA") / L"AgentStick" / L"DebugAudio";
 }
 
 AppConfig AppConfig::Defaults() {
@@ -228,8 +228,8 @@ namespace {
 
 void ApplyConfigValue(AppConfig& config, const std::string& key, const std::string& value) {
     if (key == "asr_provider") config.asr_provider = AsrProviderFromName(value);
-    if (key == "voicestick_api_key") config.voicestick_api_key = value;
-    if (key == "voicestick_cloud_url") config.voicestick_cloud_url = value;
+    if (key == "agentstick_api_key") config.agentstick_api_key = value;
+    if (key == "agentstick_cloud_url") config.agentstick_cloud_url = value;
     if (key == "volcengine_api_key" || key == "api_key") config.volcengine_api_key = value;
     if (key == "llm_base_url") config.llm_base_url = value;
     if (key == "llm_api_key") config.llm_api_key = value;
@@ -296,8 +296,8 @@ AppConfig AppConfig::Load() {
         auto table = toml::parse(input, ConfigPath().native());
 
         if (auto value = TomlString(table, "asr_provider")) config.asr_provider = AsrProviderFromName(*value);
-        if (auto value = TomlString(table, "voicestick_api_key")) config.voicestick_api_key = *value;
-        if (auto value = TomlString(table, "voicestick_cloud_url")) config.voicestick_cloud_url = *value;
+        if (auto value = TomlString(table, "agentstick_api_key")) config.agentstick_api_key = *value;
+        if (auto value = TomlString(table, "agentstick_cloud_url")) config.agentstick_cloud_url = *value;
         if (auto value = TomlString(table, "volcengine_api_key")) config.volcengine_api_key = *value;
         if (auto value = TomlString(table, "api_key")) config.volcengine_api_key = *value;
         if (auto value = TomlString(table, "llm_base_url")) config.llm_base_url = *value;
@@ -369,8 +369,8 @@ void AppConfig::Save() const {
         paired << paired_device_ids[i];
     }
     output << "asr_provider = \"" << AsrProviderName(asr_provider) << "\"\n";
-    output << "voicestick_api_key = \"" << TomlEscape(voicestick_api_key) << "\"\n";
-    output << "voicestick_cloud_url = \"" << TomlEscape(voicestick_cloud_url) << "\"\n";
+    output << "agentstick_api_key = \"" << TomlEscape(agentstick_api_key) << "\"\n";
+    output << "agentstick_cloud_url = \"" << TomlEscape(agentstick_cloud_url) << "\"\n";
     output << "volcengine_api_key = \"" << TomlEscape(volcengine_api_key) << "\"\n";
     output << "llm_base_url = \"" << TomlEscape(llm_base_url) << "\"\n";
     output << "llm_api_key = \"" << TomlEscape(llm_api_key) << "\"\n";
@@ -417,13 +417,13 @@ void AppConfig::Save() const {
 }
 
 std::string AppConfig::ActiveApiKey() const {
-    return asr_provider == AsrProvider::kVoiceStickCloud ? voicestick_api_key : volcengine_api_key;
+    return asr_provider == AsrProvider::kAgentStickCloud ? agentstick_api_key : volcengine_api_key;
 }
 
 std::string AppConfig::ActiveWebsocketUrl() const {
     if (asr_provider == AsrProvider::kVolcengine) return kVolcengineUrl;
-    auto url = Trim(voicestick_cloud_url);
-    return url.empty() ? AppConfig{}.voicestick_cloud_url : url;
+    auto url = Trim(agentstick_cloud_url);
+    return url.empty() ? AppConfig{}.agentstick_cloud_url : url;
 }
 
 void AppConfig::SavePairedDevice(const PairedDeviceEntry& entry) {
@@ -494,11 +494,11 @@ OutputProfile AppConfig::OutputProfileForDevice(const std::optional<std::string>
 }
 
 std::string AsrProviderName(AsrProvider provider) {
-    return provider == AsrProvider::kVoiceStickCloud ? "voicestick_cloud" : "volcengine";
+    return provider == AsrProvider::kAgentStickCloud ? "agentstick_cloud" : "volcengine";
 }
 
 AsrProvider AsrProviderFromName(std::string_view name) {
-    return name == "voicestick_cloud" ? AsrProvider::kVoiceStickCloud : AsrProvider::kVolcengine;
+    return name == "agentstick_cloud" ? AsrProvider::kAgentStickCloud : AsrProvider::kVolcengine;
 }
 
 std::string InteractionModeName(InteractionMode mode) {
@@ -632,4 +632,4 @@ std::vector<std::string> ParseHotwordList(std::string_view text) {
     return hotwords;
 }
 
-} // namespace voicestick
+} // namespace agentstick

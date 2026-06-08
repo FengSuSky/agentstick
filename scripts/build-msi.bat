@@ -12,7 +12,7 @@ if "%VERSION%"=="" (
     echo ERROR: Could not read version from %PROJECT_DIR%\VERSION
     exit /b 1
 )
-echo Building VoiceStick v%VERSION% MSI installer...
+echo Building AgentStick v%VERSION% MSI installer...
 
 :: Initialize VS build environment (cmake, ninja, cl, rc, etc.)
 set VSWHERE="%ProgramFiles(x86)%\Microsoft Visual Studio\Installer\vswhere.exe"
@@ -38,8 +38,8 @@ if errorlevel 1 (
     exit /b 1
 )
 
-if not exist "%BUILD_DIR%\VoiceStick.exe" (
-    echo ERROR: VoiceStick.exe not found in build directory.
+if not exist "%BUILD_DIR%\AgentStick.exe" (
+    echo ERROR: AgentStick.exe not found in build directory.
     exit /b 1
 )
 if not exist "%BUILD_DIR%\WinSparkle.dll" (
@@ -75,9 +75,9 @@ if errorlevel 1 (
 echo.
 echo [2/4] Signing binaries...
 set SIGN_ARGS=/v /fd sha256 /sha1 %SIGNING_SHA1% /tr http://rfc3161timestamp.globalsign.com/advanced /td sha256
-"%SIGNTOOL%" sign %SIGN_ARGS% "%BUILD_DIR%\VoiceStick.exe"
+"%SIGNTOOL%" sign %SIGN_ARGS% "%BUILD_DIR%\AgentStick.exe"
 if errorlevel 1 (
-    echo ERROR: Signing VoiceStick.exe failed.
+    echo ERROR: Signing AgentStick.exe failed.
     exit /b 1
 )
 "%SIGNTOOL%" sign %SIGN_ARGS% "%BUILD_DIR%\WinSparkle.dll"
@@ -96,7 +96,7 @@ if not exist "%WIX_PATH%" (
     echo ERROR: WiX not found at %WIX_PATH%
     exit /b 1
 )
-"%WIX_PATH%" build "%WINDOWS_DIR%\installer\VoiceStick.wxs" ^
+"%WIX_PATH%" build "%WINDOWS_DIR%\installer\AgentStick.wxs" ^
     "%WINDOWS_DIR%\installer\zh-CN.wxl" ^
     -arch x64 ^
     -culture zh-CN ^
@@ -105,7 +105,7 @@ if not exist "%WIX_PATH%" (
     -d ProductVersion=%VERSION% ^
     -d BuildDir=%BUILD_DIR% ^
     -d ProjectDir=%PROJECT_DIR% ^
-    -o "%BUILD_DIR%\VoiceStick_%VERSION%.msi"
+    -o "%BUILD_DIR%\AgentStick_%VERSION%.msi"
 if errorlevel 1 (
     echo ERROR: WiX build failed.
     exit /b 1
@@ -114,11 +114,11 @@ if errorlevel 1 (
 :: Step 4: Sign MSI installer
 echo.
 echo [4/4] Signing MSI...
-"%SIGNTOOL%" sign %SIGN_ARGS% "%BUILD_DIR%\VoiceStick_%VERSION%.msi"
+"%SIGNTOOL%" sign %SIGN_ARGS% "%BUILD_DIR%\AgentStick_%VERSION%.msi"
 if errorlevel 1 (
     echo ERROR: Signing MSI failed.
     exit /b 1
 )
 
 echo.
-echo Success: %BUILD_DIR%\VoiceStick_%VERSION%.msi
+echo Success: %BUILD_DIR%\AgentStick_%VERSION%.msi

@@ -14,7 +14,7 @@
 #include <wincodec.h>
 #include <wrl/client.h>
 
-namespace voicestick {
+namespace agentstick {
 
 namespace {
 
@@ -227,14 +227,14 @@ SubtitleWindow::SubtitleWindow(HINSTANCE instance, HWND parent)
     WNDCLASSW wc{};
     wc.lpfnWndProc = SubtitleWindow::WndProc;
     wc.hInstance = instance_;
-    wc.lpszClassName = L"VoiceStickSubtitleWindow";
+    wc.lpszClassName = L"AgentStickSubtitleWindow";
     wc.hCursor = LoadCursor(nullptr, IDC_ARROW);
     RegisterClassW(&wc);
 
     hwnd_ = CreateWindowExW(
         WS_EX_TOPMOST | WS_EX_TOOLWINDOW | WS_EX_LAYERED | WS_EX_TRANSPARENT | WS_EX_NOACTIVATE,
         wc.lpszClassName,
-        L"VoiceStick Subtitles",
+        L"AgentStick Subtitles",
         WS_POPUP,
         0, 0, 1, 1,
         parent_,
@@ -609,4 +609,4 @@ std::string SubtitleWindow::NormalizeSubtitleText(std::string_view text) {
     return normalized;
 }
 
-} // namespace voicestick
+} // namespace agentstick

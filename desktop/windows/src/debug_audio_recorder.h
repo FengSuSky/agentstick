@@ -6,7 +6,7 @@
 #include <optional>
 #include <string>
 
-namespace voicestick {
+namespace agentstick {
 
 class DebugAudioRecorder {
 public:
@@ -29,4 +29,4 @@ private:
     ByteVector current_audio_;
 };
 
-} // namespace voicestick
+} // namespace agentstick

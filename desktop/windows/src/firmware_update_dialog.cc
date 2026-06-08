@@ -9,7 +9,7 @@
 #include <string_view>
 #include <utility>
 
-namespace voicestick {
+namespace agentstick {
 
 namespace {
 
@@ -262,7 +262,7 @@ void FirmwareUpdateDialog::SetText(HWND control, const std::wstring& text) {
 }
 
 int FirmwareUpdateDialog::Dp(int px) const {
-    return voicestick::ScalePx(px, dpi_);
+    return agentstick::ScalePx(px, dpi_);
 }
 
-} // namespace voicestick
+} // namespace agentstick

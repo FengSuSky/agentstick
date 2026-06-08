@@ -1,7 +1,7 @@
 #pragma once
 
 #include "app_config.h"
-#include "voice_stick_coordinator.h"
+#include "agent_stick_coordinator.h"
 
 #include <Windows.h>
 #include <Winhttp.h>
@@ -15,7 +15,7 @@
 #include <thread>
 #include <vector>
 
-namespace voicestick {
+namespace agentstick {
 
 class AsrClientWin : public AsrClient {
 public:
@@ -82,4 +82,4 @@ private:
     std::string last_start_error_;
 };
 
-} // namespace voicestick
+} // namespace agentstick

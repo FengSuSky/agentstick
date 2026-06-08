@@ -12,7 +12,7 @@ namespace Gdiplus {
 class Graphics;
 }
 
-namespace voicestick {
+namespace agentstick {
 
 class OverlayWindow {
 public:
@@ -125,4 +125,4 @@ private:
     static constexpr int kMaxAlpha = 255;
 };
 
-} // namespace voicestick
+} // namespace agentstick

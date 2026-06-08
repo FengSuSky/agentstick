@@ -1,6 +1,6 @@
 #pragma once
 
-#include "voice_stick_coordinator.h"
+#include "agent_stick_coordinator.h"
 
 #include <Windows.h>
 
@@ -8,7 +8,7 @@
 #include <string>
 #include <vector>
 
-namespace voicestick {
+namespace agentstick {
 
 class FirmwareUpdateDialog {
 public:
@@ -51,4 +51,4 @@ private:
     static constexpr int kClientHeight = 190;
 };
 
-} // namespace voicestick
+} // namespace agentstick

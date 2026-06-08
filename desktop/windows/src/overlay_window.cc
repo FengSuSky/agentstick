@@ -17,7 +17,7 @@
 #pragma comment(lib, "Msimg32.lib")
 #pragma comment(lib, "Windowscodecs.lib")
 
-namespace voicestick {
+namespace agentstick {
 
 namespace {
 
@@ -217,7 +217,7 @@ OverlayWindow::OverlayWindow(HINSTANCE instance, HWND parent)
     WNDCLASSW wc{};
     wc.lpfnWndProc = OverlayWindow::WndProc;
     wc.hInstance = instance_;
-    wc.lpszClassName = L"VoiceStickOverlayV2";
+    wc.lpszClassName = L"AgentStickOverlayV2";
     wc.hCursor = LoadCursor(nullptr, IDC_ARROW);
     RegisterClassW(&wc);
 
@@ -487,7 +487,7 @@ void OverlayWindow::RefreshDpi() {
 }
 
 int OverlayWindow::Dp(int px) const {
-    return voicestick::ScalePx(px, dpi_);
+    return agentstick::ScalePx(px, dpi_);
 }
 
 float OverlayWindow::DpF(int px) const {
@@ -894,4 +894,4 @@ LRESULT CALLBACK OverlayWindow::WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM l
     }
 }
 
-} // namespace voicestick
+} // namespace agentstick

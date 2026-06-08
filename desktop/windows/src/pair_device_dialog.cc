@@ -13,7 +13,7 @@
 #include <memory>
 #include <utility>
 
-namespace voicestick {
+namespace agentstick {
 
 namespace {
 
@@ -305,7 +305,7 @@ LPCDLGTEMPLATE PairDeviceDialog::BuildDialogTemplate() {
     AppendDialogData(&dialog_template_, &dialog_template, sizeof(dialog_template));
     AppendDialogWord(&dialog_template_, 0);
     AppendDialogWord(&dialog_template_, 0);
-    AppendDialogWideString(&dialog_template_, L"Pair VoiceStick");
+    AppendDialogWideString(&dialog_template_, L"Pair AgentStick");
     AppendDialogWord(&dialog_template_, 9);
     AppendDialogWideString(&dialog_template_, L"Segoe UI");
     return reinterpret_cast<LPCDLGTEMPLATE>(dialog_template_.data());
@@ -367,7 +367,7 @@ void PairDeviceDialog::BuildContent() {
                  LVS_EX_FULLROWSELECT | LVS_EX_DOUBLEBUFFER | LVS_EX_GRIDLINES);
     const int scrollbar_width = GetSystemMetricsForDpi(SM_CXVSCROLL, dpi_);
     const int list_width = client_width - 2 * margin - scrollbar_width - Dp(6);
-    InsertColumn(device_list_, 0, L"VoiceStick", Dp(150));
+    InsertColumn(device_list_, 0, L"AgentStick", Dp(150));
     InsertColumn(device_list_, 1, L"Signal", Dp(86));
     InsertColumn(device_list_, 2, L"Bluetooth Address",
                  list_width - Dp(150) - Dp(86));
@@ -623,7 +623,7 @@ std::wstring PairDeviceDialog::Utf16(const std::string& text) const {
 }
 
 int PairDeviceDialog::Dp(int px) const {
-    return voicestick::ScalePx(px, dpi_);
+    return agentstick::ScalePx(px, dpi_);
 }
 
-} // namespace voicestick
+} // namespace agentstick

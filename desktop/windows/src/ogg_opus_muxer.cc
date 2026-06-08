@@ -4,7 +4,7 @@
 #include <algorithm>
 #include <stdexcept>
 
-namespace voicestick {
+namespace agentstick {
 
 OggOpusMuxer::OggOpusMuxer(int sample_rate, int channels)
     : sample_rate_(sample_rate), channels_(channels) {}
@@ -63,7 +63,7 @@ ByteVector OggOpusMuxer::OpusTags() {
     ByteVector data;
     AppendAscii(data, "OpusTags");
     AppendLe32(data, 10);
-    AppendAscii(data, "VoiceStick");
+    AppendAscii(data, "AgentStick");
     AppendLe32(data, 0);
     return data;
 }
@@ -111,4 +111,4 @@ ByteVector OggOpusMuxer::MakeEmptyPage(std::uint64_t granule, std::uint8_t heade
     return page;
 }
 
-} // namespace voicestick
+} // namespace agentstick

@@ -16,7 +16,7 @@
 #include <iterator>
 #include <optional>
 
-namespace voicestick {
+namespace agentstick {
 
 namespace {
 
@@ -46,12 +46,12 @@ constexpr UINT kMenuTranslationEnd = 5799;
 constexpr UINT kMenuOptionsPerDevice = 6;
 constexpr UINT kMenuTranslationsPerDevice = 24;
 
-#ifndef VOICESTICK_APPCAST_URL
-#define VOICESTICK_APPCAST_URL "https://78.github.io/voicestick/appcast.xml"
+#ifndef AGENTSTICK_APPCAST_URL
+#define AGENTSTICK_APPCAST_URL "https://78.github.io/agentstick/appcast.xml"
 #endif
 
 void LogLine(std::string_view message) {
-    voicestick::LogApp(message);
+    agentstick::LogApp(message);
 }
 
 std::wstring Utf16FromUtf8(std::string_view text) {
@@ -139,7 +139,7 @@ Win32App::Win32App(HINSTANCE instance) : instance_(instance), config_(AppConfig:
 
 int Win32App::Run() {
     try {
-        LogLine("VoiceStickApp starting");
+        LogLine("AgentStickApp starting");
         ui_thread_id_ = GetCurrentThreadId();
         LogLine("Creating main window");
         if (!CreateWindowInternal()) {
@@ -152,7 +152,7 @@ int Win32App::Run() {
         AddTrayIcon();
 
         LogLine("Initializing WinSparkle");
-        win_sparkle_set_appcast_url(VOICESTICK_APPCAST_URL);
+        win_sparkle_set_appcast_url(AGENTSTICK_APPCAST_URL);
         win_sparkle_set_automatic_check_for_updates(1);
         win_sparkle_set_update_check_interval(86400);
         win_sparkle_init();
@@ -161,7 +161,7 @@ int Win32App::Run() {
         LogLine("Creating BLE coordinator");
         auto ble = std::make_unique<BleCentralWin>(config_.paired_device_ids, hwnd_);
         ble_central_ = ble.get();
-        coordinator_ = std::make_unique<VoiceStickCoordinator>(
+        coordinator_ = std::make_unique<AgentStickCoordinator>(
             config_,
             std::move(ble),
             std::make_unique<AsrClientWin>(config_),
@@ -267,7 +267,7 @@ void Win32App::HandlePairingCompleted(const std::string& device_id, std::optiona
     if (info && !info->firmware_version.empty()) {
         detail += ", firmware " + info->firmware_version;
     }
-    ShowNotification("VoiceStick paired", detail);
+    ShowNotification("AgentStick paired", detail);
     RebuildTooltip();
 }
 
@@ -357,9 +357,9 @@ void Win32App::ShowCloudUpgrade(const std::string& message,
     DispatchToUi([this, message, url, device_id] {
         ApplyOverlayStyle(device_id);
         auto show_dialog = [this, message, url] {
-            const auto text = Utf16(message + "\n\nOpen the VoiceStick Cloud page?");
+            const auto text = Utf16(message + "\n\nOpen the AgentStick Cloud page?");
             const int result = MessageBoxW(hwnd_, text.c_str(),
-                                           L"VoiceStick Cloud needs attention",
+                                           L"AgentStick Cloud needs attention",
                                            MB_ICONINFORMATION | MB_YESNO | MB_DEFBUTTON1);
             if (result == IDYES) {
                 const auto wide_url = Utf16(url);
@@ -557,12 +557,12 @@ bool Win32App::CreateWindowInternal() {
     WNDCLASSW wc{};
     wc.lpfnWndProc = Win32App::WindowProc;
     wc.hInstance = instance_;
-    wc.lpszClassName = L"VoiceStickWindow";
+    wc.lpszClassName = L"AgentStickWindow";
     wc.hCursor = LoadCursor(nullptr, IDC_ARROW);
-    wc.hIcon = LoadIconW(instance_, MAKEINTRESOURCEW(IDI_VOICESTICK_APP));
+    wc.hIcon = LoadIconW(instance_, MAKEINTRESOURCEW(IDI_AGENTSTICK_APP));
     RegisterClassW(&wc);
     LogLine("Creating hidden app window");
-    hwnd_ = CreateWindowExW(0, wc.lpszClassName, L"VoiceStick", 0, 0, 0, 0, 0,
+    hwnd_ = CreateWindowExW(0, wc.lpszClassName, L"AgentStick", 0, 0, 0, 0, 0,
                             nullptr, nullptr, instance_, this);
     if (!hwnd_) return false;
 
@@ -581,12 +581,12 @@ void Win32App::AddTrayIcon() {
     data.uFlags = NIF_MESSAGE | NIF_ICON | NIF_TIP | NIF_SHOWTIP;
     data.uCallbackMessage = kTrayCallbackMessage;
     data.hIcon = static_cast<HICON>(LoadImageW(
-        instance_, MAKEINTRESOURCEW(IDI_VOICESTICK_TRAY), IMAGE_ICON,
+        instance_, MAKEINTRESOURCEW(IDI_AGENTSTICK_TRAY), IMAGE_ICON,
         GetSystemMetrics(SM_CXSMICON), GetSystemMetrics(SM_CYSMICON),
         LR_DEFAULTCOLOR | LR_SHARED));
-    if (!data.hIcon) data.hIcon = LoadIconW(instance_, MAKEINTRESOURCEW(IDI_VOICESTICK_APP));
+    if (!data.hIcon) data.hIcon = LoadIconW(instance_, MAKEINTRESOURCEW(IDI_AGENTSTICK_APP));
     if (!data.hIcon) data.hIcon = LoadIcon(nullptr, IDI_APPLICATION);
-    wcscpy_s(data.szTip, L"VoiceStick - Not connected");
+    wcscpy_s(data.szTip, L"AgentStick - Not connected");
     if (!Shell_NotifyIconW(NIM_ADD, &data)) {
         LogLine("Shell_NotifyIcon NIM_ADD failed: " + std::to_string(GetLastError()));
         return;
@@ -615,7 +615,7 @@ void Win32App::ShowTrayMenu() {
     AppendMenuW(menu, MF_SEPARATOR, 0, nullptr);
 
     if (paired_device_ids_.empty() && connected_devices_.empty()) {
-        AppendMenuW(menu, MF_STRING | MF_DISABLED, 0, L"No paired VoiceStick devices");
+        AppendMenuW(menu, MF_STRING | MF_DISABLED, 0, L"No paired AgentStick devices");
     }
 
     auto find_connected = [&](const std::string& id) -> const ConnectedDevice* {
@@ -869,7 +869,7 @@ void Win32App::RebuildTooltip() {
     data.hWnd = hwnd_;
     data.uID = kTrayIconId;
     data.uFlags = NIF_TIP | NIF_SHOWTIP;
-    auto tip = Utf16(std::string("VoiceStick - ") +
+    auto tip = Utf16(std::string("AgentStick - ") +
                      (connected_devices_.empty() ? "Not connected" : "Connected"));
     wcsncpy_s(data.szTip, tip.c_str(), _TRUNCATE);
     Shell_NotifyIconW(NIM_MODIFY, &data);
@@ -956,7 +956,7 @@ void Win32App::StartFirmwareUpdate(const std::string& device_id) {
             DispatchToUi([this, success, message] {
                 if (firmware_update_dialog_) firmware_update_dialog_->Finish(success, message);
                 if (success) {
-                    ShowNotification("VoiceStick firmware updated",
+                    ShowNotification("AgentStick firmware updated",
                                      "The device is rebooting into the new firmware.");
                 }
             });
@@ -990,4 +990,4 @@ std::wstring Win32App::Utf16(const std::string& text) const {
     return Utf16FromUtf8(text);
 }
 
-} // namespace voicestick
+} // namespace agentstick

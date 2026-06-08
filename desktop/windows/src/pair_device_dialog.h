@@ -1,6 +1,6 @@
 #pragma once
 
-#include "voice_stick_coordinator.h"
+#include "agent_stick_coordinator.h"
 
 #include <Windows.h>
 #include <winrt/Windows.Devices.Bluetooth.h>
@@ -15,7 +15,7 @@
 #include <string>
 #include <vector>
 
-namespace voicestick {
+namespace agentstick {
 
 class PairDeviceDialog {
 public:
@@ -89,4 +89,4 @@ private:
     winrt::event_token received_token_{};
 };
 
-} // namespace voicestick
+} // namespace agentstick

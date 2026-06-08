@@ -10,7 +10,7 @@
 #include <string>
 #include <utility>
 
-namespace voicestick {
+namespace agentstick {
 
 namespace {
 
@@ -205,7 +205,7 @@ void AsrClientWin::RunReusableWebSocket() {
         return;
     }
 
-    HINTERNET session = WinHttpOpen(L"VoiceStick/Windows", WINHTTP_ACCESS_TYPE_DEFAULT_PROXY,
+    HINTERNET session = WinHttpOpen(L"AgentStick/Windows", WINHTTP_ACCESS_TYPE_DEFAULT_PROXY,
                                    WINHTTP_NO_PROXY_NAME, WINHTTP_NO_PROXY_BYPASS, 0);
     if (!session) {
         FailReusableSession("Failed to start ASR network session: " + LastErrorText());
@@ -240,7 +240,7 @@ void AsrClientWin::RunReusableWebSocket() {
     AddHeader(request, "X-Api-Key", config_.ActiveApiKey());
     AddHeader(request, "X-Api-Request-Id", GenerateSessionId());
     AddHeader(request, "X-Api-Sequence", "-1");
-    if (config_.asr_provider == AsrProvider::kVoiceStickCloud) {
+    if (config_.asr_provider == AsrProvider::kAgentStickCloud) {
         if (!config_.paired_device_ids.empty()) {
             AddHeader(request, "X-Device-Id", config_.paired_device_ids.front());
         }
@@ -598,7 +598,7 @@ std::string AsrClientWin::GenerateSessionId() {
         static std::atomic_uint counter = 0;
         const auto value = ++counter;
         char fallback[37]{};
-        snprintf(fallback, sizeof(fallback), "voice-stick-windows-%08x", value);
+        snprintf(fallback, sizeof(fallback), "agent-stick-windows-%08x", value);
         return fallback;
     }
     bytes[6] = static_cast<std::uint8_t>((bytes[6] & 0x0f) | 0x40);
@@ -621,4 +621,4 @@ void AsrClientWin::CloseHandles(HINTERNET session, HINTERNET connect,
     if (session) WinHttpCloseHandle(session);
 }
 
-} // namespace voicestick
+} // namespace agentstick

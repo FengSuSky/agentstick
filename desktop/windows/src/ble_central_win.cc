@@ -15,7 +15,7 @@
 #include <random>
 #include <utility>
 
-namespace voicestick {
+namespace agentstick {
 
 namespace {
 
@@ -137,7 +137,7 @@ std::string ScanStartFailureMessage(const winrt::hresult_error& error) {
     std::string message = "Bluetooth LE scan failed (HRESULT=" + FormatHresult(error.code()) + ")";
     const auto detail = winrt::to_string(error.message());
     if (!detail.empty()) message += ": " + detail;
-    message += ". Turn on Bluetooth in Windows Settings, then restart VoiceStick or update paired devices.";
+    message += ". Turn on Bluetooth in Windows Settings, then restart AgentStick or update paired devices.";
     return message;
 }
 
@@ -343,7 +343,7 @@ void BleCentralWin::UpdateFirmware(ByteVector image,
         }
         auto it = sessions_by_device_id_.find(device_id);
         if (it == sessions_by_device_id_.end() || !it->second->ready) {
-            completion(false, "No VoiceStick is connected.");
+            completion(false, "No AgentStick is connected.");
             return;
         }
         session = it->second;
@@ -865,11 +865,11 @@ winrt::fire_and_forget BleCentralWin::ConnectDeviceAsync(std::uint64_t bluetooth
                     }
                 }
                 if (session->service) break;
-                LogBleLine("VoiceStick service UUID not present in result for VS-" + device_id);
+                LogBleLine("AgentStick service UUID not present in result for VS-" + device_id);
             }
 
             if (attempt == kServiceDiscoveryAttempts) {
-                fail("VoiceStick service discovery failed after retries (status=" +
+                fail("AgentStick service discovery failed after retries (status=" +
                      GattStatusName(status) + ", services=" + std::to_string(count) +
                      "). Toggle Bluetooth off and back on, then try pairing again.");
                 co_return;
@@ -1400,4 +1400,4 @@ void BleCentralWin::PublishConnections() {
     on_connection_change(devices);
 }
 
-} // namespace voicestick
+} // namespace agentstick

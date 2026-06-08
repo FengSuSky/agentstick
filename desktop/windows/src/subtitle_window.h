@@ -8,7 +8,7 @@
 #include <string>
 #include <vector>
 
-namespace voicestick {
+namespace agentstick {
 
 class SubtitleWindow {
 public:
@@ -105,4 +105,4 @@ private:
     static constexpr int kDeviceFontSize = 14;
 };
 
-} // namespace voicestick
+} // namespace agentstick

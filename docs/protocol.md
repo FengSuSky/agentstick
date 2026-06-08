@@ -6,7 +6,7 @@ This document describes the protocol implemented by the current firmware and mac
 
 - Low-latency push-to-talk audio from StickS3 to macOS.
 - Opus over BLE to keep wireless bandwidth low.
-- Ogg Opus forwarding from macOS to either Volcengine ASR or the VoiceStick Cloud relay.
+- Ogg Opus forwarding from macOS to either Volcengine ASR or the AgentStick Cloud relay.
 - Final ASR text insertion into the focused macOS input field after release and confirmation.
 
 ## BLE GATT
@@ -238,7 +238,7 @@ Recordings shorter than 0.5 seconds are discarded locally and are not sent to AS
 
 ## ASR Transport
 
-The desktop app can connect either directly to Volcengine or to VoiceStick Cloud. Both providers use the same WebSocket binary framing in the client, so request, audio, response, and error handling are shared.
+The desktop app can connect either directly to Volcengine or to AgentStick Cloud. Both providers use the same WebSocket binary framing in the client, so request, audio, response, and error handling are shared.
 
 Volcengine endpoint:
 
@@ -246,17 +246,17 @@ Volcengine endpoint:
 wss://openspeech.bytedance.com/api/v3/sauc/bigmodel_async
 ```
 
-VoiceStick Cloud default endpoint:
+AgentStick Cloud default endpoint:
 
 ```text
-wss://api.xiaozhi.me/voicestick/asr/
+wss://api.xiaozhi.me/agentstick/asr/
 ```
 
 The first request payload currently sent by the desktop app is:
 
 ```json
 {
-  "user": {"uid": "voice-stick-local"},
+  "user": {"uid": "agent-stick-local"},
   "audio": {
     "format": "ogg",
     "codec": "opus",
@@ -275,13 +275,13 @@ The first request payload currently sent by the desktop app is:
 
 The desktop app buffers Ogg chunks until the recording reaches 0.5 seconds, then starts ASR and flushes the buffered chunks. On button release, it sends the final Ogg chunk with the WebSocket last-packet flag and waits for the final response.
 
-VoiceStick Cloud business errors should use the same error frame shape as Volcengine: message type `0x0f`, a four-byte big-endian error code, a four-byte big-endian message size, and a UTF-8 message. For quota or billing errors, the message should be JSON so the desktop app can surface an upgrade action:
+AgentStick Cloud business errors should use the same error frame shape as Volcengine: message type `0x0f`, a four-byte big-endian error code, a four-byte big-endian message size, and a UTF-8 message. For quota or billing errors, the message should be JSON so the desktop app can surface an upgrade action:
 
 ```json
 {
   "error": "quota_exceeded",
   "message": "Daily free quota has been used up.",
-  "upgrade_url": "https://voicestick.app/account/billing"
+  "upgrade_url": "https://agentstick.app/account/billing"
 }
 ```
 

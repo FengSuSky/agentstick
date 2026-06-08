@@ -6,7 +6,7 @@
 #include <optional>
 #include <string>
 
-namespace voicestick {
+namespace agentstick {
 
 struct FirmwareManifest {
     std::string hardware;
@@ -54,4 +54,4 @@ bool IsFirmwareHardwareCompatible(std::string_view device_hardware,
                                   std::string_view current_version,
                                   std::string_view manifest_hardware);
 
-} // namespace voicestick
+} // namespace agentstick

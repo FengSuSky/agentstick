@@ -7,7 +7,7 @@
 #include <sstream>
 #include <utility>
 
-namespace voicestick {
+namespace agentstick {
 
 namespace {
 
@@ -285,7 +285,7 @@ std::string AsrProtocol::SegmentKey(const AsrSegment& segment) {
 }
 
 std::string AsrProtocol::SessionPayload(const AppConfig& config, const AsrSessionOptions& options) {
-    return "{\"user\":{\"uid\":\"voice-stick-local\"},"
+    return "{\"user\":{\"uid\":\"agent-stick-local\"},"
            "\"audio\":{\"format\":\"ogg\",\"codec\":\"opus\",\"rate\":16000,\"bits\":16,\"channel\":1},"
            "\"request\":{\"model_name\":\"bigmodel\",\"enable_nonstream\":true,"
            "\"show_utterances\":" +
@@ -322,4 +322,4 @@ ByteVector AsrProtocol::MakeEventFrame(std::uint8_t message_type,
     return frame;
 }
 
-} // namespace voicestick
+} // namespace agentstick

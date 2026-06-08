@@ -46,7 +46,7 @@ Voice Stick sends Ogg Opus audio, so the first client request should use:
 ```json
 {
   "user": {
-    "uid": "voice-stick-local"
+    "uid": "agent-stick-local"
   },
   "audio": {
     "format": "ogg",

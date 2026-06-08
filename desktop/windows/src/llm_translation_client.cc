@@ -8,7 +8,7 @@
 #include <sstream>
 #include <thread>
 
-namespace voicestick {
+namespace agentstick {
 
 namespace {
 
@@ -73,7 +73,7 @@ std::string LLMTranslationClient::TranslateSync(const std::string& text,
     const auto path = ChatCompletionsPathAndQuery(&host, &port, &secure, error);
     if (!error->empty()) return {};
 
-    HINTERNET session = WinHttpOpen(L"VoiceStick/Windows",
+    HINTERNET session = WinHttpOpen(L"AgentStick/Windows",
                                    WINHTTP_ACCESS_TYPE_DEFAULT_PROXY,
                                    WINHTTP_NO_PROXY_NAME,
                                    WINHTTP_NO_PROXY_BYPASS,
@@ -258,4 +258,4 @@ std::string LLMTranslationClient::LastErrorText() {
     return std::to_string(GetLastError());
 }
 
-} // namespace voicestick
+} // namespace agentstick

@@ -2,7 +2,7 @@
 
 #include <vector>
 
-namespace voicestick {
+namespace agentstick {
 
 void InputInjectorWin::Paste(const std::string& text, bool press_enter) {
     if (text.empty()) return;
@@ -62,4 +62,4 @@ void InputInjectorWin::SendEnter() {
     SendKey(VK_RETURN, false);
 }
 
-} // namespace voicestick
+} // namespace agentstick
