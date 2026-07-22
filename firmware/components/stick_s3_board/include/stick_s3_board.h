@@ -11,7 +11,9 @@
 
 /* Lichuang ESP32-S3 board pin mapping.
  * Main button: BOOT/USER key = GPIO0 (active-low).
- * Side button: not available on this board (GPIO12 reused for I2S).
+ * The RESET key is a hardware reset line, not a firmware-readable app button.
+ * This board has no second firmware-readable app button unless one is wired
+ * to an expansion GPIO.
  * No M5PM1 PMIC on this board.
  */
 #define STICK_S3_PIN_BUTTON_FRONT 0

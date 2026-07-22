@@ -19,6 +19,7 @@
 #include "iot_button.h"
 
 #include "audio_pipeline.h"
+#include "audio_playback.h"
 #include "stick_s3_board.h"
 #include "ui_status.h"
 #include "voice_ble.h"
@@ -279,21 +280,36 @@ static void enter_deep_sleep(void)
         return;
     }
 
-    const gpio_num_t wake_gpio = STICK_S3_PIN_BUTTON_FRONT;
-    if (!esp_sleep_is_valid_wakeup_gpio(wake_gpio)) {
-        ESP_LOGE(TAG, "GPIO%d cannot wake from deep sleep", wake_gpio);
+    uint64_t wake_mask = 1ULL << STICK_S3_PIN_BUTTON_FRONT;
+#ifdef STICK_S3_PIN_BUTTON_SIDE
+    wake_mask |= 1ULL << STICK_S3_PIN_BUTTON_SIDE;
+#endif
+
+    if (!esp_sleep_is_valid_wakeup_gpio(STICK_S3_PIN_BUTTON_FRONT)) {
+        ESP_LOGE(TAG, "GPIO%d cannot wake from deep sleep", STICK_S3_PIN_BUTTON_FRONT);
+        restart_deep_sleep_timer();
+        return;
+    }
+#ifdef STICK_S3_PIN_BUTTON_SIDE
+    if (!esp_sleep_is_valid_wakeup_gpio(STICK_S3_PIN_BUTTON_SIDE)) {
+        ESP_LOGE(TAG, "GPIO%d cannot wake from deep sleep", STICK_S3_PIN_BUTTON_SIDE);
+        restart_deep_sleep_timer();
+        return;
+    }
+#endif
+
+    if (gpio_get_level(STICK_S3_PIN_BUTTON_FRONT) == 0
+#ifdef STICK_S3_PIN_BUTTON_SIDE
+        || gpio_get_level(STICK_S3_PIN_BUTTON_SIDE) == 0
+#endif
+    ) {
+        ESP_LOGI(TAG, "skip deep sleep: wake button is pressed");
         restart_deep_sleep_timer();
         return;
     }
 
-    if (gpio_get_level(wake_gpio) == 0) {
-        ESP_LOGI(TAG, "skip deep sleep: front button is pressed");
-        restart_deep_sleep_timer();
-        return;
-    }
-
-    ESP_LOGI(TAG, "entering deep sleep, wake on front button GPIO%d low (level=%d)",
-             wake_gpio, gpio_get_level(wake_gpio));
+    ESP_LOGI(TAG, "entering deep sleep, wake_mask=0x%llx front_level=%d",
+             (unsigned long long)wake_mask, gpio_get_level(STICK_S3_PIN_BUTTON_FRONT));
     release_recording_pm_locks();
     ESP_ERROR_CHECK_WITHOUT_ABORT(ui_status_set_brightness_stop_fade(0));
     ui_status_prepare_deep_sleep();
@@ -308,33 +324,53 @@ static void enter_deep_sleep(void)
        remains effective in deep sleep; combined with the explicit RTC pull-up
        below this prevents GPIO%d from floating low and self-waking. */
     (void)esp_sleep_pd_config(ESP_PD_DOMAIN_RTC_PERIPH, ESP_PD_OPTION_ON);
-    (void)rtc_gpio_pulldown_dis(wake_gpio);
-    (void)rtc_gpio_pullup_en(wake_gpio);
+    (void)rtc_gpio_pulldown_dis(STICK_S3_PIN_BUTTON_FRONT);
+    (void)rtc_gpio_pullup_en(STICK_S3_PIN_BUTTON_FRONT);
+#ifdef STICK_S3_PIN_BUTTON_SIDE
+    (void)rtc_gpio_pulldown_dis(STICK_S3_PIN_BUTTON_SIDE);
+    (void)rtc_gpio_pullup_en(STICK_S3_PIN_BUTTON_SIDE);
+#endif
 
-    esp_err_t err = esp_sleep_enable_ext1_wakeup_io(1ULL << wake_gpio,
-                                                    ESP_EXT1_WAKEUP_ANY_LOW);
+    esp_err_t err = esp_sleep_enable_ext1_wakeup_io(wake_mask, ESP_EXT1_WAKEUP_ANY_LOW);
     if (err != ESP_OK) {
         ESP_LOGE(TAG, "enable deep sleep wake failed: %s", esp_err_to_name(err));
         restart_deep_sleep_timer();
         return;
     }
 
-    /* Wait for the wake pin to settle high (button release bounce, parasitic
+    /* Wait for wake buttons to settle high (button release bounce, parasitic
        capacitance, etc.). If it stays low we would just wake up immediately
        after esp_deep_sleep_start(), so abort and retry later. */
     int wait_ms = 0;
-    while (gpio_get_level(wake_gpio) == 0 && wait_ms < 200) {
+    while ((gpio_get_level(STICK_S3_PIN_BUTTON_FRONT) == 0
+#ifdef STICK_S3_PIN_BUTTON_SIDE
+            || gpio_get_level(STICK_S3_PIN_BUTTON_SIDE) == 0
+#endif
+           ) && wait_ms < 200) {
         vTaskDelay(pdMS_TO_TICKS(10));
         wait_ms += 10;
     }
-    if (gpio_get_level(wake_gpio) == 0) {
-        ESP_LOGW(TAG, "front button still low after %d ms, abort deep sleep", wait_ms);
+    if (gpio_get_level(STICK_S3_PIN_BUTTON_FRONT) == 0
+#ifdef STICK_S3_PIN_BUTTON_SIDE
+        || gpio_get_level(STICK_S3_PIN_BUTTON_SIDE) == 0
+#endif
+    ) {
+        ESP_LOGW(TAG, "wake button still low after %d ms, abort deep sleep", wait_ms);
         restart_deep_sleep_timer();
         return;
     }
 
-    ESP_LOGI(TAG, "deep sleep go (wait_ms=%d level=%d)", wait_ms,
-             gpio_get_level(wake_gpio));
+    ESP_LOGI(TAG, "deep sleep go wait_ms=%d front_level=%d"
+#ifdef STICK_S3_PIN_BUTTON_SIDE
+             " side_level=%d"
+#endif
+             ,
+             wait_ms,
+             gpio_get_level(STICK_S3_PIN_BUTTON_FRONT)
+#ifdef STICK_S3_PIN_BUTTON_SIDE
+             , gpio_get_level(STICK_S3_PIN_BUTTON_SIDE)
+#endif
+    );
     esp_deep_sleep_start();
 }
 
@@ -501,6 +537,7 @@ static void ble_control_cb(const char *json)
     const cJSON *state = cJSON_GetObjectItemCaseSensitive(root, "state");
     const cJSON *text = cJSON_GetObjectItemCaseSensitive(root, "text");
     const cJSON *mode = cJSON_GetObjectItemCaseSensitive(root, "mode");
+    const cJSON *sound = cJSON_GetObjectItemCaseSensitive(root, "sound");
     if (cJSON_IsString(event) && strcmp(event->valuestring, "ui_state") == 0 &&
         cJSON_IsString(state)) {
         queue_ui_state_event(state->valuestring, cJSON_IsString(text) ? text->valuestring : "");
@@ -512,6 +549,17 @@ static void ble_control_cb(const char *json)
             apply_interaction_mode(INTERACTION_MODE_HOLD_TO_TALK);
         } else {
             ESP_LOGW(TAG, "unknown interaction_mode %s", mode->valuestring);
+        }
+    } else if (cJSON_IsString(event) && strcmp(event->valuestring, "play_sound") == 0 &&
+               cJSON_IsString(sound)) {
+        if (strcmp(sound->valuestring, "task_done") == 0) {
+            (void)audio_playback_play(AUDIO_PLAYBACK_SOUND_TASK_DONE);
+        } else if (strcmp(sound->valuestring, "task_failed") == 0) {
+            (void)audio_playback_play(AUDIO_PLAYBACK_SOUND_TASK_FAILED);
+        } else if (strcmp(sound->valuestring, "needs_input") == 0) {
+            (void)audio_playback_play(AUDIO_PLAYBACK_SOUND_NEEDS_INPUT);
+        } else {
+            ESP_LOGW(TAG, "unknown sound %s", sound->valuestring);
         }
     }
     cJSON_Delete(root);
@@ -543,6 +591,9 @@ static void apply_app_ui_state(const char *state, const char *text)
             return;
         }
         s_app_ui_state = APP_UI_STATE_READY;
+        if (text && text[0]) {
+            ui_status_set_idle_hint(text);
+        }
         ui_status_set_idle();
         note_activity();
         voice_ble_request_slow_interval();
@@ -996,6 +1047,11 @@ void app_main(void)
     if (audio_err != ESP_OK) {
         ESP_LOGE(TAG, "audio init failed: %s", esp_err_to_name(audio_err));
         ui_status_set_error("Audio init failed");
+    }
+
+    esp_err_t playback_err = audio_playback_init();
+    if (playback_err != ESP_OK) {
+        ESP_LOGW(TAG, "audio playback init failed: %s", esp_err_to_name(playback_err));
     }
 
     if (err == ESP_OK) {

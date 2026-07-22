@@ -81,12 +81,15 @@ enum OverlayPosition: String, CaseIterable {
 
 enum OutputTarget: String, CaseIterable {
     case focusedApp = "focused_app"
+    case agentCLI = "agent_cli"
     case subtitle
 
     var displayName: String {
         switch self {
         case .focusedApp:
             return "Focused App"
+        case .agentCLI:
+            return "Agent Run"
         case .subtitle:
             return "Subtitle"
         }
@@ -140,7 +143,10 @@ struct AppConfig {
     var deviceOverlayPositions: [String: OverlayPosition]
     var defaultOutputProfile: OutputProfile
     var deviceOutputProfiles: [String: OutputProfile]
+    var agentConfig: AgentCLIConfig
     var autoEnter: Bool
+    var agentCaptureEnabled: Bool
+    var agentSoundAlertsEnabled: Bool
     var debugAudioCache: Bool
     var debugAudioDirectory: URL
     var appLanguage: AppLanguage
@@ -196,7 +202,10 @@ struct AppConfig {
             deviceOverlayPositions: [:],
             defaultOutputProfile: .default,
             deviceOutputProfiles: [:],
+            agentConfig: .default,
             autoEnter: true,
+            agentCaptureEnabled: true,
+            agentSoundAlertsEnabled: true,
             debugAudioCache: false,
             debugAudioDirectory: defaultDebugAudioDirectory,
             appLanguage: .system
@@ -244,7 +253,14 @@ struct AppConfig {
                     default: defaults.defaultOutputProfile
                 )
             ),
+            agentConfig: agentConfig(
+                agent: file.agent,
+                agents: file.agents,
+                default: defaults.agentConfig
+            ),
             autoEnter: file.auto_enter ?? defaults.autoEnter,
+            agentCaptureEnabled: file.agent_capture_enabled ?? defaults.agentCaptureEnabled,
+            agentSoundAlertsEnabled: file.agent_sound_alerts_enabled ?? defaults.agentSoundAlertsEnabled,
             debugAudioCache: file.debug_audio_cache ?? defaults.debugAudioCache,
             debugAudioDirectory: directoryValue(file.debug_audio_dir, default: defaults.debugAudioDirectory),
             appLanguage: file.app_language.flatMap { AppLanguage(rawValue: $0) } ?? defaults.appLanguage
@@ -269,6 +285,8 @@ struct AppConfig {
         device_theme_colors = "\(deviceThemeColorText.tomlEscaped)"
         device_overlay_positions = "\(deviceOverlayPositionText.tomlEscaped)"
         auto_enter = \(autoEnter.tomlValue)
+        agent_capture_enabled = \(agentCaptureEnabled.tomlValue)
+        agent_sound_alerts_enabled = \(agentSoundAlertsEnabled.tomlValue)
         debug_audio_cache = \(debugAudioCache.tomlValue)
         debug_audio_dir = "\(debugAudioDirectory.path.tomlEscaped)"
         app_language = "\(appLanguage.rawValue.tomlEscaped)"
@@ -277,9 +295,15 @@ struct AppConfig {
         target = "\(defaultOutputProfile.target.rawValue)"
         transform = "\(defaultOutputProfile.transform.rawValue)"
         translation_target = "\(defaultOutputProfile.translationTarget.tomlEscaped)"
+
+        [agent]
+        default = "\(agentConfig.defaultAgent.tomlEscaped)"
+        cwd = "\(agentConfig.workingDirectory.path.tomlEscaped)"
+        timeout_seconds = \(agentConfig.timeoutSeconds)
         """
+        let agentText = agentDefinitionText
         let deviceText = deviceOutputProfileText
-        try (text + deviceText).write(to: Self.configURL, atomically: true, encoding: .utf8)
+        try (text + agentText + deviceText).write(to: Self.configURL, atomically: true, encoding: .utf8)
     }
 
     private static func loadLegacy(text: String, defaults: AppConfig) -> AppConfig {
@@ -315,7 +339,10 @@ struct AppConfig {
                 default: defaults.defaultOutputProfile
             ),
             deviceOutputProfiles: [:],
+            agentConfig: defaults.agentConfig,
             autoEnter: boolValue(values["auto_enter"], default: defaults.autoEnter),
+            agentCaptureEnabled: boolValue(values["agent_capture_enabled"], default: defaults.agentCaptureEnabled),
+            agentSoundAlertsEnabled: boolValue(values["agent_sound_alerts_enabled"], default: defaults.agentSoundAlertsEnabled),
             debugAudioCache: boolValue(values["debug_audio_cache"], default: defaults.debugAudioCache),
             debugAudioDirectory: directoryValue(values["debug_audio_dir"], default: defaults.debugAudioDirectory),
             appLanguage: values["app_language"].flatMap { AppLanguage(rawValue: $0) } ?? defaults.appLanguage
@@ -382,6 +409,35 @@ struct AppConfig {
             translationTarget: (translationTarget?.trimmingCharacters(in: .whitespacesAndNewlines)).flatMap {
                 $0.isEmpty ? nil : $0
             } ?? defaultValue.translationTarget
+        )
+    }
+
+    private static func agentConfig(
+        agent: AgentConfigFile?,
+        agents: [String: AgentDefinitionConfigFile]?,
+        default defaultValue: AgentCLIConfig
+    ) -> AgentCLIConfig {
+        let defaultAgent = (agent?.default_agent ?? agent?.default ?? defaultValue.defaultAgent)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        let workingDirectory = directoryValue(agent?.cwd, default: defaultValue.workingDirectory)
+        let timeoutSeconds = agent?.timeout_seconds ?? defaultValue.timeoutSeconds
+        var definitions = defaultValue.agents
+        if let agents {
+            for (name, definition) in agents {
+                let normalizedName = name.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+                guard !normalizedName.isEmpty else { continue }
+                definitions[normalizedName] = AgentCLIDefinition(
+                    type: AgentCLIType(rawValue: definition.type ?? "") ?? definitions[normalizedName]?.type ?? .generic,
+                    command: definition.command ?? definitions[normalizedName]?.command,
+                    arguments: definition.args ?? definitions[normalizedName]?.arguments ?? []
+                )
+            }
+        }
+        return AgentCLIConfig(
+            defaultAgent: defaultAgent.isEmpty ? defaultValue.defaultAgent : defaultAgent,
+            workingDirectory: workingDirectory,
+            timeoutSeconds: timeoutSeconds,
+            agents: definitions
         )
     }
 
@@ -518,6 +574,29 @@ struct AppConfig {
             }
             .joined(separator: "\n")
     }
+
+    private var agentDefinitionText: String {
+        agentConfig.agents
+            .sorted { $0.key < $1.key }
+            .map { name, definition in
+                var lines = [
+                    "",
+                    "[agents.\(name)]",
+                    "type = \"\(definition.type.rawValue)\""
+                ]
+                if let command = definition.command, !command.isEmpty {
+                    lines.append("command = \"\(command.tomlEscaped)\"")
+                }
+                if !definition.arguments.isEmpty {
+                    let args = definition.arguments
+                        .map { "\"\($0.tomlEscaped)\"" }
+                        .joined(separator: ", ")
+                    lines.append("args = [\(args)]")
+                }
+                return lines.joined(separator: "\n")
+            }
+            .joined(separator: "\n")
+    }
 }
 
 private struct ConfigFile: Decodable {
@@ -540,10 +619,14 @@ private struct ConfigFile: Decodable {
     var device_theme_colors: String?
     var device_overlay_positions: String?
     var auto_enter: Bool?
+    var agent_capture_enabled: Bool?
+    var agent_sound_alerts_enabled: Bool?
     var debug_audio_cache: Bool?
     var debug_audio_dir: String?
     var app_language: String?
     var output: OutputConfigFile?
+    var agent: AgentConfigFile?
+    var agents: [String: AgentDefinitionConfigFile]?
     var device: [String: DeviceConfigFile]?
 }
 
@@ -555,6 +638,19 @@ private struct OutputConfigFile: Decodable {
 
 private struct DeviceConfigFile: Decodable {
     var output: OutputConfigFile?
+}
+
+private struct AgentConfigFile: Decodable {
+    var default_agent: String?
+    var `default`: String?
+    var cwd: String?
+    var timeout_seconds: Int?
+}
+
+private struct AgentDefinitionConfigFile: Decodable {
+    var type: String?
+    var command: String?
+    var args: [String]?
 }
 
 private extension Bool {

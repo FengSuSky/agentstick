@@ -160,6 +160,23 @@ final class BleCentral: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate
         }
     }
 
+    func playSound(_ sound: String, to peripheralID: UUID? = nil) {
+        let data = BleProtocol.playSoundPayload(sound)
+        if let peripheralID {
+            if let characteristic = controlCharacteristics[peripheralID],
+               let peripheral = peripherals[peripheralID] {
+                let deviceID = connectedDevices[peripheralID]?.deviceID ?? "unknown"
+                NSLog("BLE play_sound sound=\(sound) dev=VS-\(deviceID)")
+                peripheral.writeValue(data, for: characteristic, type: .withoutResponse)
+            }
+            return
+        }
+
+        NSLog("BLE play_sound broadcast sound=\(sound) targets=\(controlCharacteristics.count)")
+        for (id, characteristic) in controlCharacteristics {
+            peripherals[id]?.writeValue(data, for: characteristic, type: .withoutResponse)
+        }
+    }
 
     func updateFirmware(image: Data, for deviceID: String,
                         progress: @escaping (FirmwareUpdateProgress) -> Void,
@@ -464,7 +481,7 @@ final class BleCentral: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate
         if pairedDeviceIDs.isEmpty {
             central.stopScan()
         } else {
-            central.scanForPeripherals(withServices: [CBUUID(string: BleProtocol.serviceUUID)])
+            central.scanForPeripherals(withServices: nil)
         }
     }
 

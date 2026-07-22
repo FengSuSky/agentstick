@@ -28,7 +28,8 @@
 - 新增 `AGENTSTICK_BOARD_M5STACK_STICKS3` / `AGENTSTICK_BOARD_LICHUANG_ESP32S3` 板型选择。
 - I2C 改为立创板连接：SDA `GPIO1`，SCL `GPIO2`。
 - 主按键改为 BOOT / 用户键：`GPIO0`，低电平按下。
-- 侧键当前未定义，`stick_s3_side_button_pressed()` 固定返回 `false`。
+- RESET 是硬件复位键，不会上报应用按键事件。
+- 侧键当前未定义；立创板原装硬件没有第二个可编程应用按键，`stick_s3_side_button_pressed()` 固定返回 `false`。
 - I2S 引脚改为：
   - MCLK `GPIO38`
   - WS / LRCK `GPIO13`
@@ -90,7 +91,7 @@
 - PMIC IRQ / 电池刷新逻辑使用 `#ifdef STICK_S3_PIN_PMIC_IRQ` 保护。
 - 立创板当前关闭 light sleep，避免无 PMIC / 按键 / 唤醒链路不一致导致设备行为异常。
 
-当前硬件只有前键可用，所以“最终文本等待确认”状态下没有独立侧键取消。后续可以考虑为立创板设计专门交互，例如前键短按发送、长按取消，或增加超时自动发送。
+当前原装硬件只有 BOOT / 用户键可作为应用键，所以 Text Paste / Agent Run 模式切换在立创板上通过桌面 App 菜单完成；带 secondary 键的板型可以通过侧键或 App 菜单切换。“最终文本等待确认”状态下立创板没有独立侧键取消，后续可考虑单键短按/长按交互。
 
 ### 2.5 Flash 配置
 

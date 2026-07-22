@@ -13,6 +13,8 @@ paired_device_ids = ""
 device_theme_colors = ""
 device_overlay_positions = ""
 auto_enter = true
+agent_capture_enabled = true
+agent_sound_alerts_enabled = true
 debug_audio_cache = false
 # debug_audio_dir = "~/Library/Application Support/AgentStick/DebugAudio"
 
@@ -20,6 +22,20 @@ debug_audio_cache = false
 target = "focused_app"
 transform = "original"
 translation_target = "en"
+
+# On boards with a secondary app button, side click while idle cycles:
+# Text Paste -> Agent Run. On Lichuang, use the macOS menu to switch.
+# Set [output].target to "agent_cli" to start in Agent Run mode.
+[agent]
+default = "claude" # or "codex"
+cwd = "/Users/fengsu/work/voicestick"
+timeout_seconds = 600
+
+[agents.claude]
+type = "claude_print"
+
+[agents.codex]
+type = "codex_exec"
 
 # Optional per-device output overrides:
 # [device.C3D8.output]

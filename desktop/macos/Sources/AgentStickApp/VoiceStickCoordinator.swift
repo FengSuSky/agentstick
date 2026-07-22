@@ -1,4 +1,5 @@
 import AppKit
+import AgentStickCore
 import Foundation
 
 final class AgentStickCoordinator {
@@ -21,13 +22,14 @@ final class AgentStickCoordinator {
         case finalizing(sessionID: UInt32, peripheralID: UUID, startedAt: Date?)
         case pendingConfirmation(peripheralID: UUID)
         case pausedConfirmation(peripheralID: UUID)
+        case agentRunning(peripheralID: UUID, startedAt: Date)
         case error(peripheralID: UUID?)
 
         var sessionID: UInt32? {
             switch self {
             case .recording(let sessionID, _, _), .finalizing(let sessionID, _, _):
                 return sessionID
-            case .ready, .pendingConfirmation, .pausedConfirmation, .error:
+            case .ready, .pendingConfirmation, .pausedConfirmation, .agentRunning, .error:
                 return nil
             }
         }
@@ -37,7 +39,8 @@ final class AgentStickCoordinator {
             case .recording(_, let peripheralID, _),
                  .finalizing(_, let peripheralID, _),
                  .pendingConfirmation(let peripheralID),
-                 .pausedConfirmation(let peripheralID):
+                 .pausedConfirmation(let peripheralID),
+                 .agentRunning(let peripheralID, _):
                 return peripheralID
             case .error(let peripheralID):
                 return peripheralID
@@ -51,6 +54,8 @@ final class AgentStickCoordinator {
             case .recording(_, _, let startedAt):
                 return startedAt
             case .finalizing(_, _, let startedAt):
+                return startedAt
+            case .agentRunning(_, let startedAt):
                 return startedAt
             case .ready, .pendingConfirmation, .pausedConfirmation, .error:
                 return nil
@@ -126,13 +131,14 @@ final class AgentStickCoordinator {
     private let ble: BleCentral
     private var asr: any ASRClient
     private var translator: LLMTranslationClient
+    private let agentRunner = AgentCLIRunner()
     private let subtitleController = SubtitleController()
     private let oggMuxer = OggOpusMuxer(sampleRate: 16_000, channels: 1)
     private let inputInjector = InputInjector()
     private let firmwareManifestClient = FirmwareManifestClient()
     private var debugAudioRecorder: DebugAudioRecorder
     private let minimumRecordingDuration: TimeInterval = 0.5
-    private let audioEndTimeout: TimeInterval = 1.0
+    private let audioEndTimeout: TimeInterval = 0.25
     private let firmwareManifestCacheDuration: TimeInterval = 24 * 60 * 60
 
     private var mainInputState = MainInputState.ready
@@ -181,6 +187,7 @@ final class AgentStickCoordinator {
             if !connectedDevices.isEmpty {
                 self.statusController.setStatus(L10n.ready)
                 self.ble.sendInteractionMode(self.config.interactionMode)
+                self.ble.sendUIState("ready", text: self.outputModeHint)
             } else {
                 self.statusController.setStatus(self.pairedDeviceIDs.isEmpty ? L10n.pairAgentStick : L10n.ready)
             }
@@ -360,6 +367,29 @@ final class AgentStickCoordinator {
         ble.cancelFirmwareUpdate()
     }
 
+    func handleAgentTaskSnapshot(_ snapshot: AgentTaskSnapshot) {
+        switch snapshot.state {
+        case .idle:
+            break
+        case .running:
+            ble.sendUIState("thinking", text: "\(snapshot.agent.deviceDisplayName) running")
+        case .completed:
+            ble.sendUIState("ready", text: "\(snapshot.agent.deviceDisplayName) done")
+            playAgentSoundIfEnabled("task_done")
+        case .failed:
+            ble.sendUIState("error", text: "\(snapshot.agent.deviceDisplayName) failed")
+            playAgentSoundIfEnabled("task_failed")
+        case .waitingForApproval, .needsInput:
+            ble.sendUIState("pending_confirmation", text: "\(snapshot.agent.deviceDisplayName) needs you")
+            playAgentSoundIfEnabled("needs_input")
+        }
+    }
+
+    private func playAgentSoundIfEnabled(_ sound: String) {
+        guard config.agentSoundAlertsEnabled else { return }
+        ble.playSound(sound)
+    }
+
     func checkFirmwareUpdatesNow() {
         checkFirmwareUpdatesIfNeeded(force: true, showErrors: true)
     }
@@ -474,7 +504,17 @@ final class AgentStickCoordinator {
             cancelSubtitleCycles(peripheralID: peripheralID, reason: "secondary_cancel")
             return
         }
-        cancelPendingPaste(peripheralID: peripheralID)
+        switch mainInputState {
+        case .ready:
+            cycleOutputTarget(peripheralID: peripheralID)
+        case .agentRunning(let activePeripheralID, _):
+            if activePeripheralID == peripheralID {
+                statusController.setStatus(currentLanguage == .chinese ? "Agent 运行中" : "Agent Running")
+                ble.sendUIState("thinking", to: peripheralID)
+            }
+        default:
+            cancelPendingPaste(peripheralID: peripheralID)
+        }
     }
 
     private func handlePrimaryButtonDown(sessionID: UInt32?, peripheralID: UUID) {
@@ -908,6 +948,10 @@ final class AgentStickCoordinator {
             mainInputState = .ready
             return
         }
+        if profile.target == .agentCLI {
+            enterPendingConfirmation(text: text)
+            return
+        }
         if text.isEmpty {
             pastedFinalText = true
             pendingPasteState = .idle
@@ -943,6 +987,10 @@ final class AgentStickCoordinator {
         lastRecoverablePeripheralID = activePeripheralID
         statusController.setHasRecoverableInput(true)
         pendingPasteState = .waitingToPaste(text: text)
+        if config.autoEnter {
+            completePendingPaste(text: text)
+            return
+        }
         if let peripheralID = activePeripheralID {
             mainInputState = .pendingConfirmation(peripheralID: peripheralID)
         }
@@ -1206,13 +1254,58 @@ final class AgentStickCoordinator {
     }
 
     private func completePendingPaste(text: String) {
+        let profile = outputProfile(for: activeDeviceID)
+        if profile.target == .agentCLI {
+            completePendingAgentRun(text: text)
+            return
+        }
         let shouldPressEnter = config.autoEnter
         pendingPasteState = .idle
         finishRecognitionCycle()
+        statusController.hideOverlay()
         statusController.setStatus(L10n.ready)
-        sendUIStateForActiveDevice("ready")
+        sendUIStateForActiveDevice("ready", text: outputModeHint)
         mainInputState = .ready
         inputInjector.paste(text: text, pressEnter: shouldPressEnter)
+    }
+
+    private func completePendingAgentRun(text: String) {
+        guard let peripheralID = activePeripheralID else {
+            completeAgentRunWithoutDevice(text: text)
+            return
+        }
+        pendingPasteState = .idle
+        finishRecognitionCycle()
+        mainInputState = .agentRunning(peripheralID: peripheralID, startedAt: Date())
+        let agentName = config.agentConfig.defaultAgent
+        statusController.hideOverlay()
+        statusController.setStatus(currentLanguage == .chinese ? "\(agentName) 运行中" : "\(agentName) Running")
+        ble.sendUIState("thinking", text: "Agent Run: \(agentName.capitalized)", to: peripheralID)
+        runAgentCLI(text: text, peripheralID: peripheralID)
+    }
+
+    private func completeAgentRunWithoutDevice(text: String) {
+        pendingPasteState = .idle
+        finishRecognitionCycle()
+        mainInputState = .ready
+        runAgentCLI(text: text, peripheralID: nil)
+    }
+
+    private func runAgentCLI(text: String, peripheralID: UUID?) {
+        agentRunner.run(prompt: text, config: config.agentConfig) { [weak self] result in
+            guard let self else { return }
+            switch result {
+            case .success(let agentResult):
+                self.presentAgentResult(agentResult)
+            case .failure(let error):
+                self.presentAgentError(error, prompt: text)
+            }
+            self.statusController.setStatus(L10n.ready)
+            if let peripheralID {
+                self.ble.sendUIState("ready", text: self.outputModeHint, to: peripheralID)
+            }
+            self.mainInputState = .ready
+        }
     }
 
     private var isWaitingForFinalText: Bool {
@@ -1297,7 +1390,7 @@ final class AgentStickCoordinator {
         finishRecognitionCycle()
         statusController.hideOverlay()
         statusController.setStatus(L10n.ready)
-        sendUIStateForActiveDevice("ready")
+        sendUIStateForActiveDevice("ready", text: outputModeHint)
         mainInputState = .ready
     }
 
@@ -1308,7 +1401,7 @@ final class AgentStickCoordinator {
         finishRecognitionCycle()
         statusController.hideOverlay()
         statusController.setStatus(L10n.ready)
-        sendUIStateForActiveDevice("ready")
+        sendUIStateForActiveDevice("ready", text: outputModeHint)
         mainInputState = .ready
     }
 
@@ -1498,6 +1591,72 @@ final class AgentStickCoordinator {
         ble.sendUIState(state, text: text, to: activePeripheralID)
     }
 
+    private var outputModeHint: String {
+        switch config.defaultOutputProfile.target {
+        case .agentCLI:
+            return "Agent Run: \(config.agentConfig.defaultAgent.capitalized)"
+        case .focusedApp:
+            return "Text Paste"
+        case .subtitle:
+            return "Subtitle"
+        }
+    }
+
+    private func cycleOutputTarget(peripheralID: UUID) {
+        let nextTarget: OutputTarget = config.defaultOutputProfile.target == .agentCLI ? .focusedApp : .agentCLI
+        config.defaultOutputProfile.target = nextTarget
+        do {
+            try config.save()
+            statusController.setDefaultOutputProfile(config.defaultOutputProfile)
+            statusController.setStatus(outputModeHint)
+            ble.sendUIState("ready", text: outputModeHint, to: peripheralID)
+        } catch {
+            statusController.setStatus(L10n.outputSaveFailed)
+            ble.sendUIState("error", text: error.localizedDescription, to: peripheralID)
+        }
+    }
+
+    private func presentAgentResult(_ result: AgentCLIResult) {
+        let title = result.succeeded
+            ? "\(result.task.agentName.capitalized) \(currentLanguage == .chinese ? "完成" : "Done")"
+            : "\(result.task.agentName.capitalized) \(currentLanguage == .chinese ? "失败" : "Failed")"
+        let body = result.displayText.isEmpty
+            ? (currentLanguage == .chinese ? "Agent 没有输出内容。" : "The agent did not return any output.")
+            : result.displayText
+        presentAgentAlert(title: title, prompt: result.task.prompt, body: body, resultURL: result.resultURL)
+    }
+
+    private func presentAgentError(_ error: Error, prompt: String) {
+        presentAgentAlert(
+            title: currentLanguage == .chinese ? "Agent 失败" : "Agent Failed",
+            prompt: prompt,
+            body: error.localizedDescription,
+            resultURL: nil
+        )
+    }
+
+    private func presentAgentAlert(title: String, prompt: String, body: String, resultURL: URL?) {
+        NSApp.activate(ignoringOtherApps: true)
+        let alert = NSAlert()
+        alert.alertStyle = resultURL == nil ? .warning : .informational
+        alert.messageText = title
+        let clippedBody = String(body.prefix(4_000))
+        alert.informativeText = """
+        \(currentLanguage == .chinese ? "语音任务" : "Voice task"):
+        \(prompt)
+
+        \(clippedBody)
+        """
+        if resultURL != nil {
+            alert.addButton(withTitle: currentLanguage == .chinese ? "打开完整结果" : "Open Full Result")
+        }
+        alert.addButton(withTitle: "OK")
+        let response = alert.runModal()
+        if response == .alertFirstButtonReturn, let resultURL {
+            NSWorkspace.shared.open(resultURL)
+        }
+    }
+
     private var activeDeviceID: String? {
         activePeripheralID.flatMap { ble.deviceID(for: $0) }
     }
@@ -1512,5 +1671,18 @@ final class AgentStickCoordinator {
 
     private func deviceID(for peripheralID: UUID) -> String? {
         ble.deviceID(for: peripheralID)
+    }
+}
+
+private extension AgentKind {
+    var deviceDisplayName: String {
+        switch self {
+        case .claudeCode:
+            return "Claude"
+        case .codexCLI, .codexDesktop:
+            return "Codex"
+        case .unknown:
+            return "Agent"
+        }
     }
 }

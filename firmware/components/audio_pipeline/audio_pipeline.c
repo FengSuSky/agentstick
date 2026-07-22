@@ -31,7 +31,7 @@ static const char *TAG = "audio_pipeline";
 #define TX_QUEUE_DEPTH 50
 #define TX_RETRY_DELAY_MS 30
 #define TX_MAX_RETRIES 50
-#define TX_DRAIN_TIMEOUT_MS 500
+#define TX_DRAIN_TIMEOUT_MS 150
 #define TASK_EXIT_WAIT_MS 800
 
 typedef struct {
@@ -486,7 +486,7 @@ esp_err_t audio_pipeline_stop(void)
     atomic_store(&s_running, false);
     ESP_LOGI(TAG, "stop session %" PRIu32, s_session_id);
 
-    /* Send sentinel to trigger tx_task drain and exit */
+    /* Stop capture promptly, but keep a short drain so ASR still receives real audio. */
     audio_packet_t sentinel = {
         .session_id = s_session_id,
         .seq = s_seq,
@@ -500,4 +500,9 @@ esp_err_t audio_pipeline_stop(void)
 uint32_t audio_pipeline_session_id(void)
 {
     return s_session_id;
+}
+
+bool audio_pipeline_is_running(void)
+{
+    return atomic_load(&s_running);
 }

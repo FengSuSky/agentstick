@@ -10,20 +10,34 @@ final class StatusController {
 
         init(text: String) {
             let normalized = text.lowercased()
-            if normalized.contains("pair") {
+            if normalized.contains("pair") || normalized.contains("配对") {
                 self = .needsPairing
-            } else if normalized.contains("listen") {
+            } else if normalized.contains("listen") || normalized.contains("聆听") {
                 self = .listening
-            } else if normalized.contains("error") || normalized.contains("failed") {
+            } else if normalized.contains("error") ||
+                        normalized.contains("failed") ||
+                        normalized.contains("错误") ||
+                        normalized.contains("失败") {
                 self = .error
-            } else if normalized.contains("process") || normalized.contains("final") || normalized.contains("transcrib") {
+            } else if normalized.contains("process") ||
+                        normalized.contains("final") ||
+                        normalized.contains("transcrib") ||
+                        normalized.contains("处理") ||
+                        normalized.contains("转写") ||
+                        normalized.contains("识别中") {
                 self = .processing
             } else if normalized.contains("ready") ||
+                        normalized.contains("就绪") ||
                         normalized.contains("connect") ||
+                        normalized.contains("连接") ||
                         normalized.contains("scan") ||
+                        normalized.contains("扫描") ||
                         normalized.contains("match") ||
                         normalized.contains("pause") ||
-                        normalized.contains("no speech") {
+                        normalized.contains("no speech") ||
+                        normalized.contains("无语音") ||
+                        normalized.contains("text paste") ||
+                        normalized.contains("agent run") {
                 self = .ready
             } else {
                 self = .processing

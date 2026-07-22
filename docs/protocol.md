@@ -106,6 +106,9 @@ Current desktop events:
 {"event":"ui_state","state":"error","text":"ASR timeout"}
 {"event":"interaction_mode","mode":"hold_to_talk"}
 {"event":"interaction_mode","mode":"click_to_talk"}
+{"event":"play_sound","sound":"task_done"}
+{"event":"play_sound","sound":"task_failed"}
+{"event":"play_sound","sound":"needs_input"}
 ```
 
 The desktop helper always includes a `text` field, even for states without text
@@ -119,6 +122,12 @@ Chinese glyphs; `text` is used only to choose fixed English hints.
 `hold_to_talk` starts audio on primary down and stops on primary up.
 `click_to_talk` starts audio on the first primary click and stops on the next
 primary click.
+
+`play_sound` asks the device to play a short firmware-resident alert. The Mac
+sends only the symbolic `sound` name and does not stream audio over BLE. Current
+sound names are `task_done`, `task_failed`, and `needs_input`. Firmware should
+ignore unknown sound names so newer desktop apps remain compatible with older
+sound sets.
 
 Deprecated app-to-firmware events:
 
@@ -219,7 +228,7 @@ StickS3:
 boot -> advertising -> connected -> idle -> recording -> idle
 ```
 
-The firmware also dims the display after 30 seconds of idle time. On battery power it enters deep sleep after 5 minutes; while charging or USB powered it stays at the dimmed-screen stage. The front button wakes the device from deep sleep.
+The firmware also dims the display after 30 seconds of idle time. On battery power it enters deep sleep after 5 minutes; while charging or USB powered it stays at the dimmed-screen stage. Boards with a firmware-readable secondary button can wake from deep sleep with either app button; Lichuang's RESET key is hardware reset, so its app-level mode switching is done from the desktop app.
 
 macOS:
 

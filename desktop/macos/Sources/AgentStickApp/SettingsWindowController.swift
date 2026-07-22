@@ -202,6 +202,7 @@ final class SettingsWindowController: NSWindowController {
         currentDisplayedProvider = config.asrProvider
         providerPopup.selectItem(withTitle: config.asrProvider.displayName)
         apiKeyField.stringValue = apiKey(for: config.asrProvider)
+        volcengineAppKeyField.stringValue = config.volcengineAppKey
         hotwordsTextView.string = config.asrHotwords.joined(separator: ",")
         llmBaseURLField.stringValue = config.llmBaseURL
         llmAPIKeyField.stringValue = config.llmAPIKey
@@ -303,7 +304,10 @@ final class SettingsWindowController: NSWindowController {
             deviceOverlayPositions: config.deviceOverlayPositions,
             defaultOutputProfile: config.defaultOutputProfile,
             deviceOutputProfiles: config.deviceOutputProfiles,
+            agentConfig: config.agentConfig,
             autoEnter: config.autoEnter,
+            agentCaptureEnabled: config.agentCaptureEnabled,
+            agentSoundAlertsEnabled: config.agentSoundAlertsEnabled,
             debugAudioCache: debugAudioButton.state == .on,
             debugAudioDirectory: URL(fileURLWithPath: debugAudioDirectoryField.stringValue, isDirectory: true),
             appLanguage: (languagePopup.selectedItem?.representedObject as? String).flatMap { AppLanguage(rawValue: $0) } ?? .system

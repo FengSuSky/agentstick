@@ -120,6 +120,14 @@ enum BleProtocol {
         return (try? JSONSerialization.data(withJSONObject: payload)) ?? Data()
     }
 
+    static func playSoundPayload(_ sound: String) -> Data {
+        let payload = [
+            "event": "play_sound",
+            "sound": sound
+        ]
+        return (try? JSONSerialization.data(withJSONObject: payload)) ?? Data()
+    }
+
     static func otaBeginPayload(imageSize: UInt32, transferID: UInt32) -> Data {
         var data = Data([1, otaTypeBegin, 12, 0])
         data.appendLittleEndian(imageSize)

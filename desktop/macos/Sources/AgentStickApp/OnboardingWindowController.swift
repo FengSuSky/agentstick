@@ -418,7 +418,7 @@ final class OnboardingWindowController: NSWindowController, NSWindowDelegate, CB
             return
         }
         scanStatusLabel.stringValue = L10n.scanning
-        central.scanForPeripherals(withServices: [CBUUID(string: BleProtocol.serviceUUID)])
+        central.scanForPeripherals(withServices: nil)
     }
 
     func centralManager(_ central: CBCentralManager, didDiscover peripheral: CBPeripheral,

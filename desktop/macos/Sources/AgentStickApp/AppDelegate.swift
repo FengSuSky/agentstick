@@ -1,4 +1,5 @@
 import AppKit
+import AgentStickCore
 import Sparkle
 
 final class AppDelegate: NSObject, NSApplicationDelegate {
@@ -8,6 +9,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var pairDeviceWindowController: PairDeviceWindowController?
     private var onboardingWindowController: OnboardingWindowController?
     private var firmwareUpdateWindowController: FirmwareUpdateWindowController?
+    private var taskCaptureController: AgentTaskCaptureController?
     private var updaterController: SPUStandardUpdaterController?
     private var dockIconWindowIDs = Set<ObjectIdentifier>()
     private var config = AppConfig.defaults
@@ -134,6 +136,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         statusController.setStatus(config.pairedDeviceIDs.isEmpty ? L10n.pairAgentStick : "Ready")
         coordinator.start()
+        let taskCaptureController = AgentTaskCaptureController()
+        taskCaptureController.onSnapshot = { [weak coordinator] snapshot in
+            coordinator?.handleAgentTaskSnapshot(snapshot)
+        }
+        if config.agentCaptureEnabled {
+            taskCaptureController.start()
+            self.taskCaptureController = taskCaptureController
+        }
     }
 
     private func updateInputOptions(interactionMode: InteractionMode?, autoEnter: Bool?) {

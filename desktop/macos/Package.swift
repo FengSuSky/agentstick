@@ -8,7 +8,8 @@ let package = Package(
         .macOS(.v12)
     ],
     products: [
-        .executable(name: "AgentStickApp", targets: ["AgentStickApp"])
+        .executable(name: "AgentStickApp", targets: ["AgentStickApp"]),
+        .executable(name: "AgentStickCoreTests", targets: ["AgentStickCoreTests"])
     ],
     dependencies: [
         .package(url: "https://github.com/sparkle-project/Sparkle", from: "2.6.0"),
@@ -18,6 +19,7 @@ let package = Package(
         .executableTarget(
             name: "AgentStickApp",
             dependencies: [
+                "AgentStickCore",
                 "CZlib",
                 .product(name: "Sparkle", package: "Sparkle"),
                 .product(name: "TOMLKit", package: "TOMLKit"),
@@ -34,9 +36,23 @@ let package = Package(
             ]
         ),
         .target(
+            name: "AgentStickCore",
+            dependencies: []
+        ),
+        .executableTarget(
+            name: "AgentStickHooks",
+            dependencies: ["AgentStickCore"],
+            path: "Sources/AgentStickHooks"
+        ),
+        .target(
             name: "CZlib",
             path: "Sources/CZlib",
             publicHeadersPath: "."
+        ),
+        .executableTarget(
+            name: "AgentStickCoreTests",
+            dependencies: ["AgentStickCore"],
+            path: "Tests/AgentStickAppTests"
         )
     ]
 )
