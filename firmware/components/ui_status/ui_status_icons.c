@@ -6,56 +6,40 @@
 #define CLAWD_ICON_SIZE 112
 #define CLAWD_ICON_STRIDE (CLAWD_ICON_SIZE * 4)
 #define CLAWD_ICON_DATA_SIZE (CLAWD_ICON_SIZE * CLAWD_ICON_STRIDE)
-#define CLAWD_FRAME_COUNT 5
-#define CLAWD_FRAME_PERIOD_MS 180
+#define CLAWD_FRAME_COUNT 3
+#define CLAWD_FRAME_PERIOD_MS 300
 
-/* Embedded ARGB8888 binary data for all 8 states × 5 frames */
+/* Embedded ARGB8888 binary data for all 8 states × 3 frames. */
 extern const uint8_t _binary_clawd_boot_0_argb8888_bin_start[] asm("_binary_clawd_boot_0_argb8888_bin_start");
-extern const uint8_t _binary_clawd_boot_1_argb8888_bin_start[] asm("_binary_clawd_boot_1_argb8888_bin_start");
 extern const uint8_t _binary_clawd_boot_2_argb8888_bin_start[] asm("_binary_clawd_boot_2_argb8888_bin_start");
-extern const uint8_t _binary_clawd_boot_3_argb8888_bin_start[] asm("_binary_clawd_boot_3_argb8888_bin_start");
 extern const uint8_t _binary_clawd_boot_4_argb8888_bin_start[] asm("_binary_clawd_boot_4_argb8888_bin_start");
 
 extern const uint8_t _binary_clawd_pairing_0_argb8888_bin_start[] asm("_binary_clawd_pairing_0_argb8888_bin_start");
-extern const uint8_t _binary_clawd_pairing_1_argb8888_bin_start[] asm("_binary_clawd_pairing_1_argb8888_bin_start");
 extern const uint8_t _binary_clawd_pairing_2_argb8888_bin_start[] asm("_binary_clawd_pairing_2_argb8888_bin_start");
-extern const uint8_t _binary_clawd_pairing_3_argb8888_bin_start[] asm("_binary_clawd_pairing_3_argb8888_bin_start");
 extern const uint8_t _binary_clawd_pairing_4_argb8888_bin_start[] asm("_binary_clawd_pairing_4_argb8888_bin_start");
 
 extern const uint8_t _binary_clawd_idle_0_argb8888_bin_start[] asm("_binary_clawd_idle_0_argb8888_bin_start");
-extern const uint8_t _binary_clawd_idle_1_argb8888_bin_start[] asm("_binary_clawd_idle_1_argb8888_bin_start");
 extern const uint8_t _binary_clawd_idle_2_argb8888_bin_start[] asm("_binary_clawd_idle_2_argb8888_bin_start");
-extern const uint8_t _binary_clawd_idle_3_argb8888_bin_start[] asm("_binary_clawd_idle_3_argb8888_bin_start");
 extern const uint8_t _binary_clawd_idle_4_argb8888_bin_start[] asm("_binary_clawd_idle_4_argb8888_bin_start");
 
 extern const uint8_t _binary_clawd_resting_0_argb8888_bin_start[] asm("_binary_clawd_resting_0_argb8888_bin_start");
-extern const uint8_t _binary_clawd_resting_1_argb8888_bin_start[] asm("_binary_clawd_resting_1_argb8888_bin_start");
 extern const uint8_t _binary_clawd_resting_2_argb8888_bin_start[] asm("_binary_clawd_resting_2_argb8888_bin_start");
-extern const uint8_t _binary_clawd_resting_3_argb8888_bin_start[] asm("_binary_clawd_resting_3_argb8888_bin_start");
 extern const uint8_t _binary_clawd_resting_4_argb8888_bin_start[] asm("_binary_clawd_resting_4_argb8888_bin_start");
 
 extern const uint8_t _binary_clawd_recording_0_argb8888_bin_start[] asm("_binary_clawd_recording_0_argb8888_bin_start");
-extern const uint8_t _binary_clawd_recording_1_argb8888_bin_start[] asm("_binary_clawd_recording_1_argb8888_bin_start");
 extern const uint8_t _binary_clawd_recording_2_argb8888_bin_start[] asm("_binary_clawd_recording_2_argb8888_bin_start");
-extern const uint8_t _binary_clawd_recording_3_argb8888_bin_start[] asm("_binary_clawd_recording_3_argb8888_bin_start");
 extern const uint8_t _binary_clawd_recording_4_argb8888_bin_start[] asm("_binary_clawd_recording_4_argb8888_bin_start");
 
 extern const uint8_t _binary_clawd_transcribing_0_argb8888_bin_start[] asm("_binary_clawd_transcribing_0_argb8888_bin_start");
-extern const uint8_t _binary_clawd_transcribing_1_argb8888_bin_start[] asm("_binary_clawd_transcribing_1_argb8888_bin_start");
 extern const uint8_t _binary_clawd_transcribing_2_argb8888_bin_start[] asm("_binary_clawd_transcribing_2_argb8888_bin_start");
-extern const uint8_t _binary_clawd_transcribing_3_argb8888_bin_start[] asm("_binary_clawd_transcribing_3_argb8888_bin_start");
 extern const uint8_t _binary_clawd_transcribing_4_argb8888_bin_start[] asm("_binary_clawd_transcribing_4_argb8888_bin_start");
 
 extern const uint8_t _binary_clawd_ota_0_argb8888_bin_start[] asm("_binary_clawd_ota_0_argb8888_bin_start");
-extern const uint8_t _binary_clawd_ota_1_argb8888_bin_start[] asm("_binary_clawd_ota_1_argb8888_bin_start");
 extern const uint8_t _binary_clawd_ota_2_argb8888_bin_start[] asm("_binary_clawd_ota_2_argb8888_bin_start");
-extern const uint8_t _binary_clawd_ota_3_argb8888_bin_start[] asm("_binary_clawd_ota_3_argb8888_bin_start");
 extern const uint8_t _binary_clawd_ota_4_argb8888_bin_start[] asm("_binary_clawd_ota_4_argb8888_bin_start");
 
 extern const uint8_t _binary_clawd_error_0_argb8888_bin_start[] asm("_binary_clawd_error_0_argb8888_bin_start");
-extern const uint8_t _binary_clawd_error_1_argb8888_bin_start[] asm("_binary_clawd_error_1_argb8888_bin_start");
 extern const uint8_t _binary_clawd_error_2_argb8888_bin_start[] asm("_binary_clawd_error_2_argb8888_bin_start");
-extern const uint8_t _binary_clawd_error_3_argb8888_bin_start[] asm("_binary_clawd_error_3_argb8888_bin_start");
 extern const uint8_t _binary_clawd_error_4_argb8888_bin_start[] asm("_binary_clawd_error_4_argb8888_bin_start");
 
 #define CLAWD_FRAME_DSC(name) \
@@ -73,93 +57,69 @@ extern const uint8_t _binary_clawd_error_4_argb8888_bin_start[] asm("_binary_cla
 /* Frame arrays for each state */
 static const lv_image_dsc_t s_frames_boot[CLAWD_FRAME_COUNT] = {
     CLAWD_FRAME_DSC(_binary_clawd_boot_0_argb8888_bin),
-    CLAWD_FRAME_DSC(_binary_clawd_boot_1_argb8888_bin),
     CLAWD_FRAME_DSC(_binary_clawd_boot_2_argb8888_bin),
-    CLAWD_FRAME_DSC(_binary_clawd_boot_3_argb8888_bin),
     CLAWD_FRAME_DSC(_binary_clawd_boot_4_argb8888_bin),
 };
 static const lv_image_dsc_t s_frames_pairing[CLAWD_FRAME_COUNT] = {
     CLAWD_FRAME_DSC(_binary_clawd_pairing_0_argb8888_bin),
-    CLAWD_FRAME_DSC(_binary_clawd_pairing_1_argb8888_bin),
     CLAWD_FRAME_DSC(_binary_clawd_pairing_2_argb8888_bin),
-    CLAWD_FRAME_DSC(_binary_clawd_pairing_3_argb8888_bin),
     CLAWD_FRAME_DSC(_binary_clawd_pairing_4_argb8888_bin),
 };
 static const lv_image_dsc_t s_frames_idle[CLAWD_FRAME_COUNT] = {
     CLAWD_FRAME_DSC(_binary_clawd_idle_0_argb8888_bin),
-    CLAWD_FRAME_DSC(_binary_clawd_idle_1_argb8888_bin),
     CLAWD_FRAME_DSC(_binary_clawd_idle_2_argb8888_bin),
-    CLAWD_FRAME_DSC(_binary_clawd_idle_3_argb8888_bin),
     CLAWD_FRAME_DSC(_binary_clawd_idle_4_argb8888_bin),
 };
 static const lv_image_dsc_t s_frames_resting[CLAWD_FRAME_COUNT] = {
     CLAWD_FRAME_DSC(_binary_clawd_resting_0_argb8888_bin),
-    CLAWD_FRAME_DSC(_binary_clawd_resting_1_argb8888_bin),
     CLAWD_FRAME_DSC(_binary_clawd_resting_2_argb8888_bin),
-    CLAWD_FRAME_DSC(_binary_clawd_resting_3_argb8888_bin),
     CLAWD_FRAME_DSC(_binary_clawd_resting_4_argb8888_bin),
 };
 static const lv_image_dsc_t s_frames_recording[CLAWD_FRAME_COUNT] = {
     CLAWD_FRAME_DSC(_binary_clawd_recording_0_argb8888_bin),
-    CLAWD_FRAME_DSC(_binary_clawd_recording_1_argb8888_bin),
     CLAWD_FRAME_DSC(_binary_clawd_recording_2_argb8888_bin),
-    CLAWD_FRAME_DSC(_binary_clawd_recording_3_argb8888_bin),
     CLAWD_FRAME_DSC(_binary_clawd_recording_4_argb8888_bin),
 };
 static const lv_image_dsc_t s_frames_transcribing[CLAWD_FRAME_COUNT] = {
     CLAWD_FRAME_DSC(_binary_clawd_transcribing_0_argb8888_bin),
-    CLAWD_FRAME_DSC(_binary_clawd_transcribing_1_argb8888_bin),
     CLAWD_FRAME_DSC(_binary_clawd_transcribing_2_argb8888_bin),
-    CLAWD_FRAME_DSC(_binary_clawd_transcribing_3_argb8888_bin),
     CLAWD_FRAME_DSC(_binary_clawd_transcribing_4_argb8888_bin),
 };
 static const lv_image_dsc_t s_frames_ota[CLAWD_FRAME_COUNT] = {
     CLAWD_FRAME_DSC(_binary_clawd_ota_0_argb8888_bin),
-    CLAWD_FRAME_DSC(_binary_clawd_ota_1_argb8888_bin),
     CLAWD_FRAME_DSC(_binary_clawd_ota_2_argb8888_bin),
-    CLAWD_FRAME_DSC(_binary_clawd_ota_3_argb8888_bin),
     CLAWD_FRAME_DSC(_binary_clawd_ota_4_argb8888_bin),
 };
 static const lv_image_dsc_t s_frames_error[CLAWD_FRAME_COUNT] = {
     CLAWD_FRAME_DSC(_binary_clawd_error_0_argb8888_bin),
-    CLAWD_FRAME_DSC(_binary_clawd_error_1_argb8888_bin),
     CLAWD_FRAME_DSC(_binary_clawd_error_2_argb8888_bin),
-    CLAWD_FRAME_DSC(_binary_clawd_error_3_argb8888_bin),
     CLAWD_FRAME_DSC(_binary_clawd_error_4_argb8888_bin),
 };
 
 /* Pointer arrays for lv_image_set_src */
 static const lv_image_dsc_t *const s_src_boot[CLAWD_FRAME_COUNT] = {
     &s_frames_boot[0], &s_frames_boot[1], &s_frames_boot[2],
-    &s_frames_boot[3], &s_frames_boot[4],
 };
 static const lv_image_dsc_t *const s_src_pairing[CLAWD_FRAME_COUNT] = {
     &s_frames_pairing[0], &s_frames_pairing[1], &s_frames_pairing[2],
-    &s_frames_pairing[3], &s_frames_pairing[4],
 };
 static const lv_image_dsc_t *const s_src_idle[CLAWD_FRAME_COUNT] = {
     &s_frames_idle[0], &s_frames_idle[1], &s_frames_idle[2],
-    &s_frames_idle[3], &s_frames_idle[4],
 };
 static const lv_image_dsc_t *const s_src_resting[CLAWD_FRAME_COUNT] = {
     &s_frames_resting[0], &s_frames_resting[1], &s_frames_resting[2],
-    &s_frames_resting[3], &s_frames_resting[4],
 };
 static const lv_image_dsc_t *const s_src_recording[CLAWD_FRAME_COUNT] = {
     &s_frames_recording[0], &s_frames_recording[1], &s_frames_recording[2],
-    &s_frames_recording[3], &s_frames_recording[4],
 };
 static const lv_image_dsc_t *const s_src_transcribing[CLAWD_FRAME_COUNT] = {
     &s_frames_transcribing[0], &s_frames_transcribing[1], &s_frames_transcribing[2],
-    &s_frames_transcribing[3], &s_frames_transcribing[4],
 };
 static const lv_image_dsc_t *const s_src_ota[CLAWD_FRAME_COUNT] = {
     &s_frames_ota[0], &s_frames_ota[1], &s_frames_ota[2],
-    &s_frames_ota[3], &s_frames_ota[4],
 };
 static const lv_image_dsc_t *const s_src_error[CLAWD_FRAME_COUNT] = {
     &s_frames_error[0], &s_frames_error[1], &s_frames_error[2],
-    &s_frames_error[3], &s_frames_error[4],
 };
 
 static const lv_image_dsc_t *const *get_scene_frames(ui_status_icon_scene_t scene)
