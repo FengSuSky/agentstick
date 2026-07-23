@@ -1,4 +1,5 @@
 import AppKit
+import AgentStickCore
 import Foundation
 
 enum AgentCLIType: String {
@@ -400,10 +401,9 @@ final class AgentCLIRunner {
                 .replacingOccurrences(of: "[AGENTSTICK_APPROVAL_REQUIRED]", with: "")
                 .replacingOccurrences(of: "[AGENTSTICK_INPUT_REQUIRED]", with: "")
                 .trimmingCharacters(in: .whitespacesAndNewlines)
-            if needsSemanticInput(resultText),
-               let sessionID = payload.sessionID,
-               approvalDepth < 8,
-               let inputHandler {
+            let responseState = AgentResponseClassifier.classify(resultText)
+            if responseState == .inputRequired,
+               let sessionID = payload.sessionID, approvalDepth < 8, let inputHandler {
                 switch waitForInput(handler: inputHandler, question: stdout, timeoutSeconds: timeoutSeconds) {
                 case .answered(let answer):
                     return run(
@@ -427,10 +427,8 @@ final class AgentCLIRunner {
                 case .timedOut:
                     return .failure(RunnerError.timedOut)
                 }
-            } else if needsSemanticApproval(resultText),
-               let sessionID = payload.sessionID,
-               approvalDepth < 8,
-               let approvalHandler {
+            } else if responseState == .approvalRequired,
+                      let sessionID = payload.sessionID, approvalDepth < 8, let approvalHandler {
                 let decision = waitForApproval(
                     handler: approvalHandler,
                     summary: stdout,
@@ -444,8 +442,8 @@ final class AgentCLIRunner {
                             from: command,
                             sessionID: sessionID,
                             message: currentLanguage == .chinese
-                                ? "用户已在 AgentStick 中允许刚才请求的操作。请立即继续执行，不要再次询问同一操作。"
-                                : "The user approved the requested operation in AgentStick. Continue now without asking again for the same operation."
+                                ? "用户已在 AgentStick 中允许刚才请求的操作。请立即调用工具执行，不要描述审批界面，也不要再次询问同一操作。"
+                                : "The user approved the requested operation in AgentStick. Invoke the tool now. Do not describe the approval UI or ask again for the same operation."
                         ),
                         task: task,
                         timeoutSeconds: timeoutSeconds,
@@ -460,6 +458,18 @@ final class AgentCLIRunner {
                     effectiveExitCode = 1
                 case .timedOut:
                     return .failure(RunnerError.timedOut)
+                }
+            } else if responseState != .completed {
+                // A waiting response is never a successful task, even if Claude exits with status 0.
+                effectiveExitCode = 2
+                if approvalDepth >= 8 {
+                    stdout += currentLanguage == .chinese
+                        ? "\n\nAgent 连续请求交互次数过多，任务已停止。"
+                        : "\n\nThe task stopped after too many consecutive interaction requests."
+                } else {
+                    stdout += currentLanguage == .chinese
+                        ? "\n\nAgentStick 无法恢复这次等待中的会话，任务未完成。"
+                        : "\n\nAgentStick could not resume this waiting session; the task is incomplete."
                 }
             }
         }
@@ -565,20 +575,6 @@ final class AgentCLIRunner {
         guard let data = text.data(using: .utf8),
               let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return nil }
         return (object["result"] as? String, object["session_id"] as? String)
-    }
-
-    private func needsSemanticApproval(_ text: String) -> Bool {
-        if text.contains("[AGENTSTICK_APPROVAL_REQUIRED]") { return true }
-        let normalized = text.lowercased()
-        return [
-            "需要你确认", "请批准后", "请确认后", "等待你的确认", "是否允许",
-            "need your approval", "please approve", "please confirm", "waiting for your approval",
-            "would you like me to"
-        ].contains { normalized.contains($0) }
-    }
-
-    private func needsSemanticInput(_ text: String) -> Bool {
-        text.contains("[AGENTSTICK_INPUT_REQUIRED]")
     }
 
     static func writeResultFile(task: AgentCLITask, exitCode: Int32, stdout: String, stderr: String) throws -> URL {

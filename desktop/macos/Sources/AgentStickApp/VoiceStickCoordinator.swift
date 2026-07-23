@@ -162,6 +162,7 @@ final class AgentStickCoordinator {
     private var firmwareManifestRefreshTimer: Timer?
     private var pendingFirmwareUpdatePromptDeviceIDs: Set<String> = []
     private var errorRecoveryToken = 0
+    private var taskDisplayGeneration = 0
     private var isShowingASRError = false
     private var subtitleCycles: [SubtitleCycleKey: SubtitleCycle] = [:]
     private var activeSubtitleSessions: [UUID: UInt32] = [:]
@@ -273,7 +274,7 @@ final class AgentStickCoordinator {
                 guard let self else { return }
                 self.statusController.showPartial(text, deviceID: self.activeDeviceID)
                 if self.shouldSendPartialToDevice() {
-                    self.sendUIStateForActiveDevice("thinking", text: text)
+                    self.sendUIStateForActiveDevice("transcribing")
                 }
             }
         }
@@ -315,7 +316,7 @@ final class AgentStickCoordinator {
                 else { return }
                 self.statusController.showPartial(text, deviceID: cycle.deviceID)
                 if self.shouldSendSubtitlePartialToDevice(cycle) {
-                    self.ble.sendUIState("thinking", text: text, to: peripheralID)
+                    self.ble.sendUIState("transcribing", to: peripheralID)
                 }
             }
         }
@@ -380,22 +381,23 @@ final class AgentStickCoordinator {
     }
 
     func handleAgentTaskSnapshot(_ snapshot: AgentTaskSnapshot) {
+        taskDisplayGeneration += 1
         switch snapshot.state {
         case .idle:
             break
         case .running:
-            ble.sendUIState("thinking", text: "\(snapshot.agent.deviceDisplayName) running")
+            ble.sendUIState("task_running", text: "\(snapshot.agent.deviceDisplayName) running")
         case .completed:
             agentApprovalCenter.finishContinuingRequests()
             playAgentSoundIfEnabled("task_done")
-            ble.sendUIState("ready", text: "\(snapshot.agent.deviceDisplayName) done")
+            ble.sendUIState("notification", text: "\(snapshot.agent.deviceDisplayName) done")
         case .failed:
             agentApprovalCenter.finishContinuingRequests()
             playAgentSoundIfEnabled("task_failed")
             ble.sendUIState("error", text: "\(snapshot.agent.deviceDisplayName) failed")
         case .waitingForApproval, .needsInput:
             playAgentSoundIfEnabled("needs_input")
-            ble.sendUIState("pending_confirmation", text: "\(snapshot.agent.deviceDisplayName) needs you")
+            ble.sendUIState("needs_attention", text: "\(snapshot.agent.deviceDisplayName) needs you")
         }
     }
 
@@ -410,7 +412,7 @@ final class AgentStickCoordinator {
 
     func requestAgentApproval(agent: String, kind: String, details: String, reply: @escaping (Bool) -> Void) {
         playAgentSoundIfEnabled("needs_input")
-        ble.sendUIState("pending_confirmation", text: "\(agent) needs approval")
+        ble.sendUIState("needs_attention", text: "\(agent) needs approval")
         agentApprovalCenter.submit(
             agent: agent,
             kind: kind,
@@ -418,7 +420,7 @@ final class AgentStickCoordinator {
             details: details
         ) { [weak self] allowed in
             reply(allowed)
-            self?.ble.sendUIState("thinking", text: allowed ? "Approval allowed" : "Approval denied")
+            self?.ble.sendUIState("task_running", text: allowed ? "Approval allowed" : "Approval denied")
         }
     }
 
@@ -534,7 +536,7 @@ final class AgentStickCoordinator {
             } else if case .finalizing(_, let finalizingPeripheralID, _) = mainInputState,
                       finalizingPeripheralID == peripheralID {
                 NSLog("Ignoring primary button click while recording is finalizing")
-                ble.sendUIState("thinking", to: peripheralID)
+                ble.sendUIState("transcribing", to: peripheralID)
             } else {
                 handlePrimaryButtonDown(sessionID: event.sessionID, peripheralID: peripheralID)
             }
@@ -560,7 +562,7 @@ final class AgentStickCoordinator {
         case .agentRunning(let activePeripheralID, _):
             if activePeripheralID == peripheralID {
                 statusController.setStatus(currentLanguage == .chinese ? "Agent 运行中" : "Agent Running")
-                ble.sendUIState("thinking", to: peripheralID)
+                ble.sendUIState("task_running", text: "Agent running", to: peripheralID)
             }
         default:
             cancelPendingPaste(peripheralID: peripheralID)
@@ -579,7 +581,7 @@ final class AgentStickCoordinator {
             if activePeripheralID != peripheralID {
                 ble.sendUIState("ready", to: peripheralID)
             } else if mainInputState.isFinalizing || isWaitingForFinalText {
-                ble.sendUIState("thinking", to: peripheralID)
+                ble.sendUIState("transcribing", to: peripheralID)
             }
             NSLog("Ignoring primary button while main input is busy")
             return
@@ -656,7 +658,7 @@ final class AgentStickCoordinator {
             } else if asrStarted {
                 debugAudioRecorder.finish()
                 statusController.setStatus(L10n.processing)
-                sendUIStateForActiveDevice("thinking")
+                sendUIStateForActiveDevice("transcribing")
             } else {
                 debugAudioRecorder.finish()
                 if !startASRAndFlushBufferedChunks(lastChunkIsFinal: true) {
@@ -664,7 +666,7 @@ final class AgentStickCoordinator {
                     return
                 }
                 statusController.setStatus(L10n.processing)
-                sendUIStateForActiveDevice("thinking")
+                sendUIStateForActiveDevice("transcribing")
             }
         }
     }
@@ -684,7 +686,7 @@ final class AgentStickCoordinator {
         NSLog("Main input finalizing reason=\(reason)")
         mainInputState = .finalizing(sessionID: sessionID, peripheralID: peripheralID, startedAt: startedAt)
         statusController.setStatus(L10n.processing)
-        sendUIStateForActiveDevice("thinking")
+        sendUIStateForActiveDevice("transcribing")
     }
 
     private func scheduleAudioEndTimeout() {
@@ -807,7 +809,7 @@ final class AgentStickCoordinator {
         NSLog("Waiting for subtitle audio END frame VS-\(cycle.deviceID ?? "unknown") reason=\(reason)")
         if config.interactionMode != .holdToTalk {
             statusController.setStatus(L10n.processing)
-            ble.sendUIState("thinking", to: cycle.peripheralID)
+            ble.sendUIState("transcribing", to: cycle.peripheralID)
         }
         scheduleSubtitleAudioEndTimeout(cycle)
     }
@@ -856,7 +858,7 @@ final class AgentStickCoordinator {
             ble.sendUIState("ready", to: cycle.peripheralID)
         } else {
             statusController.setStatus(L10n.processing)
-            ble.sendUIState("thinking", to: cycle.peripheralID)
+            ble.sendUIState("transcribing", to: cycle.peripheralID)
         }
     }
 
@@ -917,7 +919,7 @@ final class AgentStickCoordinator {
         debugAudioRecorder.finish()
         sendOrBufferOggChunk(finalChunk, isLast: true, canStartASR: true)
         statusController.setStatus(L10n.processing)
-        sendUIStateForActiveDevice("thinking")
+        sendUIStateForActiveDevice("transcribing")
     }
 
     private func shouldSendPartialToDevice() -> Bool {
@@ -1353,12 +1355,13 @@ final class AgentStickCoordinator {
             return
         }
         pendingPasteState = .idle
+        taskDisplayGeneration += 1
         finishRecognitionCycle()
         mainInputState = .agentRunning(peripheralID: peripheralID, startedAt: Date())
         let agentName = config.agentConfig.defaultAgent
         statusController.hideOverlay()
         statusController.setStatus(currentLanguage == .chinese ? "\(agentName) 运行中" : "\(agentName) Running")
-        ble.sendUIState("thinking", text: "Agent Run: \(agentName.capitalized)", to: peripheralID)
+        ble.sendUIState("task_running", text: "\(agentName.capitalized) running", to: peripheralID)
         runAgentCLI(text: text, peripheralID: peripheralID)
     }
 
@@ -1379,12 +1382,12 @@ final class AgentStickCoordinator {
                 guard let self else { reply(false); return }
                 self.playAgentSoundIfEnabled("needs_input", to: peripheralID)
                 if let peripheralID {
-                    self.ble.sendUIState("pending_confirmation", text: "\(agent) needs approval", to: peripheralID)
+                    self.ble.sendUIState("needs_attention", text: "\(agent) needs approval", to: peripheralID)
                 }
                 self.agentApprovalCenter.submit(agent: agent, kind: kind, summary: summary, details: details) { [weak self] allowed in
                     reply(allowed)
                     if let peripheralID {
-                        self?.ble.sendUIState("thinking", text: allowed ? "Approval allowed" : "Approval denied", to: peripheralID)
+                        self?.ble.sendUIState("task_running", text: allowed ? "Approval allowed" : "Approval denied", to: peripheralID)
                     }
                 }
             },
@@ -1392,7 +1395,7 @@ final class AgentStickCoordinator {
                 guard let self else { reply(nil); return }
                 self.playAgentSoundIfEnabled("needs_input", to: peripheralID)
                 if let peripheralID {
-                    self.ble.sendUIState("pending_confirmation", text: "\(agent) needs input", to: peripheralID)
+                    self.ble.sendUIState("needs_attention", text: "\(agent) needs input", to: peripheralID)
                 }
                 self.agentApprovalCenter.submitInput(
                     agent: agent,
@@ -1402,7 +1405,7 @@ final class AgentStickCoordinator {
                 ) { [weak self] answers in
                     reply(answers)
                     if let peripheralID {
-                        self?.ble.sendUIState("thinking", text: answers == nil ? "Input cancelled" : "Answer received", to: peripheralID)
+                        self?.ble.sendUIState("task_running", text: answers == nil ? "Input cancelled" : "Answer received", to: peripheralID)
                     }
                 }
             }
@@ -1414,7 +1417,7 @@ final class AgentStickCoordinator {
                 if let peripheralID {
                     if agentResult.succeeded {
                         self.playAgentSoundIfEnabled("task_done", to: peripheralID)
-                        self.ble.sendUIState("ready", text: "\(agentResult.task.agentName.capitalized) done", to: peripheralID)
+                        self.ble.sendUIState("notification", text: "\(agentResult.task.agentName.capitalized) done", to: peripheralID)
                     } else {
                         self.playAgentSoundIfEnabled("task_failed", to: peripheralID)
                         self.ble.sendUIState("error", text: "\(agentResult.task.agentName.capitalized) failed", to: peripheralID)
@@ -1429,10 +1432,22 @@ final class AgentStickCoordinator {
                 self.presentAgentError(error, prompt: text)
             }
             self.statusController.setStatus(L10n.ready)
-            if let peripheralID {
-                self.ble.sendUIState("ready", text: self.outputModeHint, to: peripheralID)
-            }
             self.mainInputState = .ready
+            if let peripheralID {
+                self.restoreReadyAfterTaskResult(on: peripheralID)
+            }
+        }
+    }
+
+    private func restoreReadyAfterTaskResult(on peripheralID: UUID) {
+        taskDisplayGeneration += 1
+        let generation = taskDisplayGeneration
+        DispatchQueue.main.asyncAfter(deadline: .now() + 4) { [weak self] in
+            guard let self,
+                  self.taskDisplayGeneration == generation,
+                  !self.mainInputState.isBusy
+            else { return }
+            self.ble.sendUIState("ready", text: self.outputModeHint, to: peripheralID)
         }
     }
 

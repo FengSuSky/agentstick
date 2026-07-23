@@ -72,7 +72,7 @@ business actions such as "cancel" or "confirm"; the app owns that interpretation
 Currently emitted state events:
 
 ```json
-{"event":"device_info","hardware":"stick_s3","firmware_version":"0.2.2","buttons":["primary","secondary"],"interaction_modes":["hold_to_talk","click_to_talk"],"ui_states":["ready","recording","thinking","pending_confirmation","error"]}
+{"event":"device_info","hardware":"stick_s3","firmware_version":"0.2.2","buttons":["primary","secondary"],"interaction_modes":["hold_to_talk","click_to_talk"],"ui_states":["ready","recording","transcribing","thinking","task_running","pending_confirmation","needs_attention","notification","error"]}
 {"event":"button_down","button":"primary","session_id":1234}
 {"event":"button_up","button":"primary","duration_ms":620,"session_id":1234}
 {"event":"button_down","button":"secondary"}
@@ -101,8 +101,11 @@ Current desktop events:
 ```json
 {"event":"ui_state","state":"ready","text":""}
 {"event":"ui_state","state":"recording","text":""}
-{"event":"ui_state","state":"thinking","text":"partial text"}
+{"event":"ui_state","state":"transcribing","text":""}
+{"event":"ui_state","state":"task_running","text":"Codex running"}
 {"event":"ui_state","state":"pending_confirmation","text":"final text"}
+{"event":"ui_state","state":"needs_attention","text":"Codex needs approval"}
+{"event":"ui_state","state":"notification","text":"Codex done"}
 {"event":"ui_state","state":"error","text":"ASR timeout"}
 {"event":"interaction_mode","mode":"hold_to_talk"}
 {"event":"interaction_mode","mode":"click_to_talk"}
@@ -114,9 +117,25 @@ Current desktop events:
 The desktop helper always includes a `text` field, even for states without text
 content. Firmware may immediately render local physical feedback, such as
 showing the recording cat when the primary button starts audio, but the app's
-`ui_state` is the authoritative display state. Current StickS3 firmware does not
-render recognition text on-device because the LVGL font set does not include
-Chinese glyphs; `text` is used only to choose fixed English hints.
+`ui_state` is the authoritative display state. Recognition text is intentionally
+not rendered because the LVGL font set does not include Chinese glyphs. Fixed
+English task labels supplied with `task_running`, `needs_attention`,
+`notification`, and `error` are rendered as the device hint.
+
+Task display mapping:
+
+| Task meaning | UI state | Device scene |
+| --- | --- | --- |
+| Speech recognition | `transcribing` | Transcribing |
+| Agent executing | `task_running` | Thinking / Working |
+| Transcription confirmation | `pending_confirmation` | Notification / Needs You |
+| Agent approval or input required | `needs_attention` | Notification / Needs You |
+| Task completed | `notification` | Notification / Done |
+| Task failed | `error` | Error |
+
+`thinking` remains a compatibility alias for `transcribing` for older desktop
+clients. Busy states (`recording`, `transcribing`, `task_running`,
+`pending_confirmation`, and `needs_attention`) prevent display dimming and deep sleep.
 
 `interaction_mode` controls the front-button behavior and idle screen hint.
 `hold_to_talk` starts audio on primary down and stops on primary up.
@@ -134,7 +153,7 @@ Deprecated app-to-firmware events:
 | Event | Replacement | Reason |
 | --- | --- | --- |
 | `connected` | `ui_state:ready` | Connection is not a display state after pairing. |
-| `partial` | `ui_state:thinking` with `text` | Partial text is display content for the thinking state. |
+| `partial` | `ui_state:transcribing` | Partial recognition text remains on the desktop overlay. |
 | `final` | `ui_state:pending_confirmation` with `text` | Final text is still cancellable until pasted. |
 | `paste_done` | `ui_state:ready` | Once pasted, the device returns to ready. |
 | `paste_cancelled` | `ui_state:ready` | Once cancelled, the device returns to ready. |
@@ -233,11 +252,11 @@ The firmware also dims the display after 30 seconds of idle time. On battery pow
 macOS:
 
 ```text
-needs_pairing -> scanning -> ready -> recording -> thinking -> pending_confirmation -> ready
+needs_pairing -> scanning -> ready -> recording -> transcribing -> pending_confirmation -> ready
 ```
 
-During recognition and confirmation, the firmware keeps showing the thinking cat
-until the app sends `ui_state:ready`. During pending confirmation, `primary`
+During recognition the firmware shows the transcribing scene; Agent execution
+uses the thinking scene, and confirmation uses the notification scene. During pending confirmation, `primary`
 confirms or pauses according to the app's internal countdown mode, and
 `secondary` cancels. When idle, `secondary` restores the last recoverable input
 confirmation. These meanings are app state-machine behavior, not firmware

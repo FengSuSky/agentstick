@@ -604,7 +604,23 @@ void ui_status_set_battery(int level_percent, bool charging, bool usb_powered)
 void ui_status_set_partial_text(const char *text)
 {
     ESP_LOGD(TAG, "partial: %s", text ? text : "");
-    set_scene(UI_STATUS_ICON_TRANSCRIBING, "Thinking", text ? text : "");
+    set_scene(UI_STATUS_ICON_TRANSCRIBING, "Transcribing", text ? text : "Listening...");
+}
+
+void ui_status_set_task_running(const char *message)
+{
+    set_scene(UI_STATUS_ICON_THINKING, "Working", message && message[0] ? message : "Agent running");
+}
+
+void ui_status_set_needs_attention(const char *message)
+{
+    set_scene(UI_STATUS_ICON_NOTIFICATION, "Needs You",
+              message && message[0] ? message : "Confirm or cancel");
+}
+
+void ui_status_set_notification(const char *message)
+{
+    set_scene(UI_STATUS_ICON_NOTIFICATION, "Done", message && message[0] ? message : "Task complete");
 }
 
 void ui_status_set_ota_progress(uint32_t written, uint32_t size)

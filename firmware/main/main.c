@@ -62,8 +62,11 @@ static uint32_t s_primary_session_id;
 typedef enum {
     APP_UI_STATE_READY,
     APP_UI_STATE_RECORDING,
-    APP_UI_STATE_THINKING,
+    APP_UI_STATE_TRANSCRIBING,
+    APP_UI_STATE_TASK_RUNNING,
     APP_UI_STATE_PENDING_CONFIRMATION,
+    APP_UI_STATE_NEEDS_ATTENTION,
+    APP_UI_STATE_NOTIFICATION,
     APP_UI_STATE_ERROR,
 } app_ui_state_t;
 
@@ -83,14 +86,29 @@ static const char *app_ui_state_name(app_ui_state_t state)
         return "ready";
     case APP_UI_STATE_RECORDING:
         return "recording";
-    case APP_UI_STATE_THINKING:
-        return "thinking";
+    case APP_UI_STATE_TRANSCRIBING:
+        return "transcribing";
+    case APP_UI_STATE_TASK_RUNNING:
+        return "task_running";
     case APP_UI_STATE_PENDING_CONFIRMATION:
         return "pending_confirmation";
+    case APP_UI_STATE_NEEDS_ATTENTION:
+        return "needs_attention";
+    case APP_UI_STATE_NOTIFICATION:
+        return "notification";
     case APP_UI_STATE_ERROR:
         return "error";
     }
     return "unknown";
+}
+
+static bool app_ui_prevents_power_idle(void)
+{
+    return s_app_ui_state == APP_UI_STATE_RECORDING ||
+           s_app_ui_state == APP_UI_STATE_TRANSCRIBING ||
+           s_app_ui_state == APP_UI_STATE_TASK_RUNNING ||
+           s_app_ui_state == APP_UI_STATE_PENDING_CONFIRMATION ||
+           s_app_ui_state == APP_UI_STATE_NEEDS_ATTENTION;
 }
 
 typedef enum {
@@ -205,7 +223,7 @@ static void restart_display_dim_timer(void)
     }
 
     (void)esp_timer_stop(s_display_dim_timer);
-    if (!s_recording && !s_ota_updating) {
+    if (!s_recording && !s_ota_updating && !app_ui_prevents_power_idle()) {
         esp_err_t err = esp_timer_start_once(s_display_dim_timer, DISPLAY_DIM_TIMEOUT_US);
         if (err != ESP_OK) {
             ESP_LOGW(TAG, "start dim timer failed: %s", esp_err_to_name(err));
@@ -220,7 +238,8 @@ static void restart_deep_sleep_timer(void)
     }
 
     (void)esp_timer_stop(s_deep_sleep_timer);
-    if (!s_recording && !s_ota_updating && !is_external_powered()) {
+    if (!s_recording && !s_ota_updating && !app_ui_prevents_power_idle() &&
+        !is_external_powered()) {
         esp_err_t err = esp_timer_start_once(s_deep_sleep_timer, DEEP_SLEEP_TIMEOUT_US);
         if (err != ESP_OK) {
             ESP_LOGW(TAG, "start deep sleep timer failed: %s", esp_err_to_name(err));
@@ -254,7 +273,8 @@ static void stop_host_response_timer(void)
 
 static void enter_deep_sleep(void)
 {
-    if (s_recording || s_ota_updating || voice_ble_ota_is_active()) {
+    if (s_recording || s_ota_updating || voice_ble_ota_is_active() ||
+        app_ui_prevents_power_idle()) {
         restart_deep_sleep_timer();
         return;
     }
@@ -376,7 +396,9 @@ static void enter_deep_sleep(void)
 
 static bool app_ui_allows_recording_start(void)
 {
-    return s_app_ui_state != APP_UI_STATE_PENDING_CONFIRMATION;
+    return s_app_ui_state == APP_UI_STATE_READY ||
+           s_app_ui_state == APP_UI_STATE_NOTIFICATION ||
+           s_app_ui_state == APP_UI_STATE_ERROR;
 }
 
 static uint32_t start_recording(void)
@@ -611,15 +633,31 @@ static void apply_app_ui_state(const char *state, const char *text)
         if (!s_recording) {
             ui_status_set_recording(0);
         }
-    } else if (strcmp(state, "thinking") == 0) {
-        s_app_ui_state = APP_UI_STATE_THINKING;
+    } else if (strcmp(state, "transcribing") == 0 || strcmp(state, "thinking") == 0) {
+        // "thinking" remains an ASR compatibility alias for older desktop apps.
+        s_app_ui_state = APP_UI_STATE_TRANSCRIBING;
         ui_status_set_partial_text("");
+        note_activity();
+    } else if (strcmp(state, "task_running") == 0) {
+        s_app_ui_state = APP_UI_STATE_TASK_RUNNING;
+        ui_status_set_task_running(text);
+        note_activity();
     } else if (strcmp(state, "pending_confirmation") == 0) {
         s_app_ui_state = APP_UI_STATE_PENDING_CONFIRMATION;
-        ui_status_set_partial_text("Confirm or cancel");
+        ui_status_set_needs_attention("Confirm or cancel");
+        note_activity();
+    } else if (strcmp(state, "needs_attention") == 0) {
+        s_app_ui_state = APP_UI_STATE_NEEDS_ATTENTION;
+        ui_status_set_needs_attention(text);
+        note_activity();
+    } else if (strcmp(state, "notification") == 0) {
+        s_app_ui_state = APP_UI_STATE_NOTIFICATION;
+        ui_status_set_notification(text);
+        note_activity();
     } else if (strcmp(state, "error") == 0) {
         s_app_ui_state = APP_UI_STATE_ERROR;
         ui_status_set_error(text && text[0] ? text : "Unknown error");
+        note_activity();
     } else {
         ESP_LOGW(TAG, "unknown ui_state %s", state);
     }
@@ -796,7 +834,7 @@ static void app_event_task(void *arg)
             break;
         case APP_EVENT_HOST_RESPONSE_TIMEOUT:
             if (!s_recording && (s_app_ui_state == APP_UI_STATE_RECORDING ||
-                                 s_app_ui_state == APP_UI_STATE_THINKING)) {
+                                 s_app_ui_state == APP_UI_STATE_TRANSCRIBING)) {
                 ESP_LOGW(TAG, "host response timeout, returning to ready");
                 apply_app_ui_state("ready", "");
             }

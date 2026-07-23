@@ -9,7 +9,7 @@
 #define CLAWD_FRAME_COUNT 3
 #define CLAWD_FRAME_PERIOD_MS 300
 
-/* Embedded ARGB8888 binary data for all 8 states × 3 frames. */
+/* Embedded ARGB8888 binary data for all enabled scenes × 3 frames. */
 extern const uint8_t _binary_clawd_boot_0_argb8888_bin_start[] asm("_binary_clawd_boot_0_argb8888_bin_start");
 extern const uint8_t _binary_clawd_boot_2_argb8888_bin_start[] asm("_binary_clawd_boot_2_argb8888_bin_start");
 extern const uint8_t _binary_clawd_boot_4_argb8888_bin_start[] asm("_binary_clawd_boot_4_argb8888_bin_start");
@@ -33,6 +33,14 @@ extern const uint8_t _binary_clawd_recording_4_argb8888_bin_start[] asm("_binary
 extern const uint8_t _binary_clawd_transcribing_0_argb8888_bin_start[] asm("_binary_clawd_transcribing_0_argb8888_bin_start");
 extern const uint8_t _binary_clawd_transcribing_2_argb8888_bin_start[] asm("_binary_clawd_transcribing_2_argb8888_bin_start");
 extern const uint8_t _binary_clawd_transcribing_4_argb8888_bin_start[] asm("_binary_clawd_transcribing_4_argb8888_bin_start");
+
+extern const uint8_t _binary_clawd_thinking_0_argb8888_bin_start[] asm("_binary_clawd_thinking_0_argb8888_bin_start");
+extern const uint8_t _binary_clawd_thinking_2_argb8888_bin_start[] asm("_binary_clawd_thinking_2_argb8888_bin_start");
+extern const uint8_t _binary_clawd_thinking_4_argb8888_bin_start[] asm("_binary_clawd_thinking_4_argb8888_bin_start");
+
+extern const uint8_t _binary_clawd_notification_0_argb8888_bin_start[] asm("_binary_clawd_notification_0_argb8888_bin_start");
+extern const uint8_t _binary_clawd_notification_2_argb8888_bin_start[] asm("_binary_clawd_notification_2_argb8888_bin_start");
+extern const uint8_t _binary_clawd_notification_4_argb8888_bin_start[] asm("_binary_clawd_notification_4_argb8888_bin_start");
 
 extern const uint8_t _binary_clawd_ota_0_argb8888_bin_start[] asm("_binary_clawd_ota_0_argb8888_bin_start");
 extern const uint8_t _binary_clawd_ota_2_argb8888_bin_start[] asm("_binary_clawd_ota_2_argb8888_bin_start");
@@ -85,6 +93,16 @@ static const lv_image_dsc_t s_frames_transcribing[CLAWD_FRAME_COUNT] = {
     CLAWD_FRAME_DSC(_binary_clawd_transcribing_2_argb8888_bin),
     CLAWD_FRAME_DSC(_binary_clawd_transcribing_4_argb8888_bin),
 };
+static const lv_image_dsc_t s_frames_thinking[CLAWD_FRAME_COUNT] = {
+    CLAWD_FRAME_DSC(_binary_clawd_thinking_0_argb8888_bin),
+    CLAWD_FRAME_DSC(_binary_clawd_thinking_2_argb8888_bin),
+    CLAWD_FRAME_DSC(_binary_clawd_thinking_4_argb8888_bin),
+};
+static const lv_image_dsc_t s_frames_notification[CLAWD_FRAME_COUNT] = {
+    CLAWD_FRAME_DSC(_binary_clawd_notification_0_argb8888_bin),
+    CLAWD_FRAME_DSC(_binary_clawd_notification_2_argb8888_bin),
+    CLAWD_FRAME_DSC(_binary_clawd_notification_4_argb8888_bin),
+};
 static const lv_image_dsc_t s_frames_ota[CLAWD_FRAME_COUNT] = {
     CLAWD_FRAME_DSC(_binary_clawd_ota_0_argb8888_bin),
     CLAWD_FRAME_DSC(_binary_clawd_ota_2_argb8888_bin),
@@ -115,6 +133,12 @@ static const lv_image_dsc_t *const s_src_recording[CLAWD_FRAME_COUNT] = {
 static const lv_image_dsc_t *const s_src_transcribing[CLAWD_FRAME_COUNT] = {
     &s_frames_transcribing[0], &s_frames_transcribing[1], &s_frames_transcribing[2],
 };
+static const lv_image_dsc_t *const s_src_thinking[CLAWD_FRAME_COUNT] = {
+    &s_frames_thinking[0], &s_frames_thinking[1], &s_frames_thinking[2],
+};
+static const lv_image_dsc_t *const s_src_notification[CLAWD_FRAME_COUNT] = {
+    &s_frames_notification[0], &s_frames_notification[1], &s_frames_notification[2],
+};
 static const lv_image_dsc_t *const s_src_ota[CLAWD_FRAME_COUNT] = {
     &s_frames_ota[0], &s_frames_ota[1], &s_frames_ota[2],
 };
@@ -131,6 +155,8 @@ static const lv_image_dsc_t *const *get_scene_frames(ui_status_icon_scene_t scen
     case UI_STATUS_ICON_RESTING:       return s_src_resting;
     case UI_STATUS_ICON_RECORDING:     return s_src_recording;
     case UI_STATUS_ICON_TRANSCRIBING:  return s_src_transcribing;
+    case UI_STATUS_ICON_THINKING:      return s_src_thinking;
+    case UI_STATUS_ICON_NOTIFICATION:  return s_src_notification;
     case UI_STATUS_ICON_OTA:           return s_src_ota;
     case UI_STATUS_ICON_ERROR:         return s_src_error;
     }

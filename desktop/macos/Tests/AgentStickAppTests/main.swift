@@ -133,4 +133,19 @@ let approvalReply = try AgentEventBridgeClient.requestApproval(
 )
 approvalServer.stop()
 expect(approvalReply.allowed, "Bridge should return the UI approval decision")
+let observedClaudeApprovalText = """
+每次执行 git commit 时 AgentStick 审批中心都会弹出新的审批请求。请在 AgentStick 审批窗口中点击“允许（本次）”或“始终允许”来放行此操作，之后提交会自动完成。
+"""
+expect(
+    AgentResponseClassifier.classify(observedClaudeApprovalText) == .approvalRequired,
+    "Natural-language Claude approval waits must not be recorded as completed"
+)
+expect(
+    AgentResponseClassifier.classify("改动已经完成，测试全部通过。") == .completed,
+    "Ordinary completion text must remain completed"
+)
+expect(
+    AgentResponseClassifier.classify("请选择目标环境。[AGENTSTICK_INPUT_REQUIRED]") == .inputRequired,
+    "Explicit input markers should be classified as input"
+)
 print("AgentStickCoreTests passed")
