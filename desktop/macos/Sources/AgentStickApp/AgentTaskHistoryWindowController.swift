@@ -1,4 +1,5 @@
 import AppKit
+import AgentStickCore
 import Foundation
 
 final class AgentTaskHistoryWindowController: NSWindowController, NSTableViewDataSource, NSTableViewDelegate {
@@ -296,10 +297,14 @@ final class AgentTaskHistoryWindowController: NSWindowController, NSTableViewDat
         let agent = value(after: "Agent:", in: markdown) ?? "Agent"
         let exitCode = value(after: "Exit code:", in: markdown).flatMap(Int.init)
         let promptSection = section(named: "Prompt", in: markdown)
-        let prompt = promptSection
+        let rawPrompt = promptSection
             .split(whereSeparator: \.isNewline)
             .map(String.init)
             .first { !$0.trimmingCharacters(in: .whitespaces).isEmpty } ?? url.deletingPathExtension().lastPathComponent
+        let prompt = AgentDisplayTitle.from(
+            rawPrompt,
+            fallback: url.deletingPathExtension().lastPathComponent
+        )
         return TaskEntry(
             url: url,
             date: values?.contentModificationDate ?? .distantPast,
@@ -567,10 +572,13 @@ final class AgentTaskHistoryWindowController: NSWindowController, NSTableViewDat
         form.translatesAutoresizingMaskIntoConstraints = false
         form.widthAnchor.constraint(equalToConstant: 460).isActive = true
         var controls: [(AgentInputQuestion, NSControl)] = []
+        var firstTextControl: NSTextField?
         for question in request.questions {
             let label = NSTextField(wrappingLabelWithString: question.question)
             label.font = .systemFont(ofSize: 13, weight: .medium)
-            label.maximumNumberOfLines = 3
+            label.maximumNumberOfLines = 2
+            label.lineBreakMode = .byTruncatingTail
+            label.widthAnchor.constraint(equalToConstant: 460).isActive = true
             form.addArrangedSubview(label)
             let control: NSControl
             if !question.options.isEmpty && question.allowsFreeText {
@@ -583,11 +591,22 @@ final class AgentTaskHistoryWindowController: NSWindowController, NSTableViewDat
                 popup.addItems(withTitles: question.options)
                 control = popup
             } else if question.isSecret {
-                control = NSSecureTextField()
+                let field = NSSecureTextField()
+                field.placeholderString = currentLanguage == .chinese ? "输入回答" : "Type your answer"
+                control = field
+                firstTextControl = firstTextControl ?? field
             } else {
-                control = NSTextField()
+                let field = NSTextField()
+                field.placeholderString = currentLanguage == .chinese ? "输入回答，也可使用 AgentStick 语音回答" : "Type an answer, or answer by voice with AgentStick"
+                field.isEditable = true
+                field.isSelectable = true
+                control = field
+                firstTextControl = firstTextControl ?? field
             }
             control.widthAnchor.constraint(equalToConstant: 460).isActive = true
+            if control is NSTextField {
+                control.heightAnchor.constraint(equalToConstant: 28).isActive = true
+            }
             form.addArrangedSubview(control)
             controls.append((question, control))
         }
@@ -596,8 +615,23 @@ final class AgentTaskHistoryWindowController: NSWindowController, NSTableViewDat
         alert.informativeText = currentLanguage == .chinese ? "回答后 Agent 将继续当前任务。" : "The agent will continue the current task after you answer."
         alert.accessoryView = form
         alert.addButton(withTitle: currentLanguage == .chinese ? "提交回答" : "Submit")
-        alert.addButton(withTitle: currentLanguage == .chinese ? "取消" : "Cancel")
-        guard alert.runModal() == .alertFirstButtonReturn else { return }
+        let supportsVoiceAnswer =
+            request.questions.count == 1 &&
+            request.questions[0].options.isEmpty &&
+            request.questions[0].allowsFreeText &&
+            !request.questions[0].isSecret
+        if supportsVoiceAnswer {
+            alert.addButton(withTitle: currentLanguage == .chinese ? "使用语音回答" : "Answer by Voice")
+        }
+        alert.addButton(withTitle: currentLanguage == .chinese ? "关闭" : "Close")
+        if let firstTextControl {
+            alert.window.initialFirstResponder = firstTextControl
+        }
+        let response = alert.runModal()
+        if supportsVoiceAnswer, response == .alertSecondButtonReturn {
+            return
+        }
+        guard response == .alertFirstButtonReturn else { return }
         var answers: [String: [String]] = [:]
         for (question, control) in controls {
             let value: String

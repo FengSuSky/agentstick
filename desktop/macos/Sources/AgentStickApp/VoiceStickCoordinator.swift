@@ -164,6 +164,9 @@ final class AgentStickCoordinator {
     private var errorRecoveryToken = 0
     private var taskDisplayGeneration = 0
     private var isShowingASRError = false
+    private var pendingAgentVoiceInputRequest: AgentInputRequest?
+    private var pendingAgentVoiceQuestionID: String?
+    private var pendingAgentVoicePeripheralID: UUID?
     private var subtitleCycles: [SubtitleCycleKey: SubtitleCycle] = [:]
     private var activeSubtitleSessions: [UUID: UInt32] = [:]
     var onFirmwareUpdatePrompt: ((String, String, String, Bool) -> Void)?
@@ -577,7 +580,16 @@ final class AgentStickCoordinator {
         if handleFrontButtonDuringPendingPaste(peripheralID: peripheralID) {
             return
         }
-        if mainInputState.isBusy {
+        let isStartingAgentVoiceAnswer: Bool
+        if case .agentRunning(let activePeripheralID, _) = mainInputState {
+            isStartingAgentVoiceAnswer =
+                activePeripheralID == peripheralID &&
+                pendingAgentVoiceInputRequest?.state == .pending &&
+                pendingAgentVoiceQuestionID != nil
+        } else {
+            isStartingAgentVoiceAnswer = false
+        }
+        if mainInputState.isBusy && !isStartingAgentVoiceAnswer {
             if activePeripheralID != peripheralID {
                 ble.sendUIState("ready", to: peripheralID)
             } else if mainInputState.isFinalizing || isWaitingForFinalText {
@@ -985,6 +997,9 @@ final class AgentStickCoordinator {
 
     private func finishWithFinalText(_ text: String) {
         guard !pastedFinalText else { return }
+        if finishPendingAgentVoiceAnswer(text) {
+            return
+        }
         let profile = outputProfile(for: activeDeviceID)
         if profile.target == .subtitle {
             pastedFinalText = true
@@ -1378,39 +1393,55 @@ final class AgentStickCoordinator {
             config: config.agentConfig,
             bypassApprovals: config.agentBypassApprovals,
             memoryEnabled: config.agentMemoryEnabled,
-            approvalHandler: { [weak self] agent, kind, summary, details, reply in
+            approvalHandler: { [weak self] agent, kind, _, details, reply in
                 guard let self else { reply(false); return }
                 self.playAgentSoundIfEnabled("needs_input", to: peripheralID)
                 if let peripheralID {
                     self.ble.sendUIState("needs_attention", text: "\(agent) needs approval", to: peripheralID)
                 }
-                self.agentApprovalCenter.submit(agent: agent, kind: kind, summary: summary, details: details) { [weak self] allowed in
+                self.agentApprovalCenter.submit(agent: agent, kind: kind, summary: text, details: details) { [weak self] allowed in
                     reply(allowed)
                     if let peripheralID {
                         self?.ble.sendUIState("task_running", text: allowed ? "Approval allowed" : "Approval denied", to: peripheralID)
                     }
                 }
             },
-            inputHandler: { [weak self] agent, summary, details, questions, reply in
+            inputHandler: { [weak self] agent, _, details, questions, reply in
                 guard let self else { reply(nil); return }
                 self.playAgentSoundIfEnabled("needs_input", to: peripheralID)
                 if let peripheralID {
                     self.ble.sendUIState("needs_attention", text: "\(agent) needs input", to: peripheralID)
                 }
-                self.agentApprovalCenter.submitInput(
+                var submittedRequest: AgentInputRequest?
+                submittedRequest = self.agentApprovalCenter.submitInput(
                     agent: agent,
-                    summary: summary,
+                    summary: text,
                     details: details,
                     questions: questions
                 ) { [weak self] answers in
+                    if self?.pendingAgentVoiceInputRequest?.id == submittedRequest?.id {
+                        self?.clearPendingAgentVoiceInput()
+                    }
                     reply(answers)
                     if let peripheralID {
                         self?.ble.sendUIState("task_running", text: answers == nil ? "Input cancelled" : "Answer received", to: peripheralID)
                     }
                 }
+                if let request = submittedRequest,
+                   questions.count == 1,
+                   let question = questions.first,
+                   question.options.isEmpty,
+                   question.allowsFreeText,
+                   !question.isSecret,
+                   peripheralID != nil {
+                    self.pendingAgentVoiceInputRequest = request
+                    self.pendingAgentVoiceQuestionID = question.id
+                    self.pendingAgentVoicePeripheralID = peripheralID
+                }
             }
         ) { [weak self] result in
             guard let self else { return }
+            self.clearPendingAgentVoiceInput()
             self.agentApprovalCenter.finishContinuingRequests()
             switch result {
             case .success(let agentResult):
@@ -1437,6 +1468,38 @@ final class AgentStickCoordinator {
                 self.restoreReadyAfterTaskResult(on: peripheralID)
             }
         }
+    }
+
+    private func finishPendingAgentVoiceAnswer(_ text: String) -> Bool {
+        guard let request = pendingAgentVoiceInputRequest,
+              request.state == .pending,
+              let questionID = pendingAgentVoiceQuestionID,
+              let peripheralID = pendingAgentVoicePeripheralID
+        else { return false }
+
+        let answer = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        pastedFinalText = true
+        pendingPasteState = .idle
+        finishRecognitionCycle()
+        statusController.hideOverlay()
+        mainInputState = .agentRunning(peripheralID: peripheralID, startedAt: Date())
+
+        guard !answer.isEmpty else {
+            statusController.setStatus(currentLanguage == .chinese ? "等待回答" : "Waiting for answer")
+            ble.sendUIState("needs_attention", text: "Answer needed", to: peripheralID)
+            return true
+        }
+
+        agentApprovalCenter.resolve(request, answers: [questionID: [answer]])
+        statusController.setStatus(currentLanguage == .chinese ? "Agent 继续执行" : "Agent Continuing")
+        ble.sendUIState("task_running", text: "Answer received", to: peripheralID)
+        return true
+    }
+
+    private func clearPendingAgentVoiceInput() {
+        pendingAgentVoiceInputRequest = nil
+        pendingAgentVoiceQuestionID = nil
+        pendingAgentVoicePeripheralID = nil
     }
 
     private func restoreReadyAfterTaskResult(on peripheralID: UUID) {

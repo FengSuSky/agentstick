@@ -101,7 +101,7 @@ struct AgentCLICommand {
                 + (memoryContext.map { ["--append-system-prompt", $0] } ?? []) : [
                 "--permission-mode", "default",
                 "--append-system-prompt",
-                "AgentStick handles native Claude tool permission requests in its approval window. Attempt the tool directly instead of asking first solely because a tool may require permission. For a non-tool decision that truly needs explicit confirmation, explain it and end with [AGENTSTICK_APPROVAL_REQUIRED]. When you need information, a choice, or clarification from the user, ask one concise question and end with [AGENTSTICK_INPUT_REQUIRED]."
+                "AgentStick handles native Claude tool permission requests in its approval window. Attempt the tool directly instead of asking first solely because a tool may require permission. Only when a non-tool decision truly blocks the task, reply with [AGENTSTICK_APPROVAL_REQUIRED] as the first line followed by one concise confirmation question, with no result or explanation before it. Only when missing user information truly blocks the task, reply with [AGENTSTICK_INPUT_REQUIRED] as the first line followed by one concise question, with no result or explanation before it. Never add either marker after presenting a result."
                     + (memoryContext.map { "\n\n\($0)" } ?? "")
             ]) + (claudeApprovalSettings.map { ["--settings", $0] } ?? []) +
             (resumeSessionID.map { ["--resume", $0] } ?? []) + [

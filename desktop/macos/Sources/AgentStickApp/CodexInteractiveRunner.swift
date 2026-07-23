@@ -1,4 +1,5 @@
 import AppKit
+import AgentStickCore
 import Foundation
 
 final class CodexInteractiveRunner {
@@ -184,8 +185,8 @@ final class CodexInteractiveRunner {
             "approvalPolicy": bypassApprovals ? "never" : "on-request",
             "approvalsReviewer": "user",
             "developerInstructions": (bypassApprovals
-                ? "The user granted unattended execution for operations. Do not ask for operation approval. When you need information, a choice, or clarification, ask one concise question and end with [AGENTSTICK_INPUT_REQUIRED]."
-                : "AgentStick handles native tool approval requests. Attempt tools directly instead of asking first solely because they may require approval. For a non-tool decision requiring confirmation, explain it and end with [AGENTSTICK_APPROVAL_REQUIRED]. When you need information, a choice, or clarification, ask one concise question and end with [AGENTSTICK_INPUT_REQUIRED]. Do not report the task completed while waiting for either response.")
+                ? "The user granted unattended execution for operations. Do not ask for operation approval. Only when missing user information truly blocks the task, reply with [AGENTSTICK_INPUT_REQUIRED] as the first line followed by one concise question, with no result or explanation before it. Never add the marker after presenting a result."
+                : "AgentStick handles native tool approval requests. Attempt tools directly instead of asking first solely because they may require approval. Only when a non-tool decision truly blocks the task, reply with [AGENTSTICK_APPROVAL_REQUIRED] as the first line followed by one concise confirmation question, with no result or explanation before it. Only when missing user information truly blocks the task, reply with [AGENTSTICK_INPUT_REQUIRED] as the first line followed by one concise question, with no result or explanation before it. Never add either marker after presenting a result.")
                 + (memoryContext.map { "\n\n\($0)" } ?? "")
         ]
         if let threadID {
@@ -202,7 +203,8 @@ final class CodexInteractiveRunner {
     @discardableResult
     private func handleSemanticInteractionIfNeeded() -> Bool {
         guard !waitingForSemanticInteraction, let threadID = activeThreadID else { return waitingForSemanticInteraction }
-        if output.contains("[AGENTSTICK_INPUT_REQUIRED]"), let inputHandler {
+        let responseState = AgentResponseClassifier.classify(output)
+        if responseState == .inputRequired, let inputHandler {
             waitingForSemanticInteraction = true
             let question = output.replacingOccurrences(of: "[AGENTSTICK_INPUT_REQUIRED]", with: "")
                 .trimmingCharacters(in: .whitespacesAndNewlines)
@@ -233,7 +235,7 @@ final class CodexInteractiveRunner {
             }
             return true
         }
-        if output.contains("[AGENTSTICK_APPROVAL_REQUIRED]"), let approvalHandler {
+        if responseState == .approvalRequired, let approvalHandler {
             waitingForSemanticInteraction = true
             let question = output.replacingOccurrences(of: "[AGENTSTICK_APPROVAL_REQUIRED]", with: "")
                 .trimmingCharacters(in: .whitespacesAndNewlines)

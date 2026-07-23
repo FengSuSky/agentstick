@@ -1,4 +1,5 @@
 import Foundation
+import AgentStickCore
 
 final class AgentApprovalRequest: Identifiable {
     enum State { case pending, continuing, allowed, denied }
@@ -15,7 +16,10 @@ final class AgentApprovalRequest: Identifiable {
     init(agent: String, kind: String, summary: String, details: String, responder: @escaping (Bool) -> Void) {
         self.agent = agent
         self.kind = kind
-        self.summary = summary
+        self.summary = AgentDisplayTitle.from(
+            summary,
+            fallback: currentLanguage == .chinese ? "Agent 请求确认" : "Agent requests confirmation"
+        )
         self.details = details
         self.responder = responder
     }
@@ -137,7 +141,10 @@ final class AgentInputRequest: Identifiable {
         responder: @escaping ([String: [String]]?) -> Void
     ) {
         self.agent = agent
-        self.summary = summary
+        self.summary = AgentDisplayTitle.from(
+            summary,
+            fallback: currentLanguage == .chinese ? "Agent 需要输入" : "Agent needs input"
+        )
         self.details = details
         self.questions = questions
         self.responder = responder
