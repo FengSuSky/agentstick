@@ -22,9 +22,13 @@ final class StatusController {
             } else if normalized.contains("process") ||
                         normalized.contains("final") ||
                         normalized.contains("transcrib") ||
+                        normalized.contains("running") ||
+                        normalized.contains("translat") ||
                         normalized.contains("处理") ||
                         normalized.contains("转写") ||
-                        normalized.contains("识别中") {
+                        normalized.contains("识别中") ||
+                        normalized.contains("运行中") ||
+                        normalized.contains("翻译") {
                 self = .processing
             } else if normalized.contains("ready") ||
                         normalized.contains("就绪") ||
@@ -40,7 +44,10 @@ final class StatusController {
                         normalized.contains("agent run") {
                 self = .ready
             } else {
-                self = .processing
+                // Short-lived feedback such as "Device sound sent" is not a
+                // task state. Unknown text must never leave the menu bar
+                // claiming that work is in progress.
+                self = .ready
             }
         }
 
@@ -108,9 +115,8 @@ final class StatusController {
     var onSetAutoEnter: ((Bool) -> Void)?
     var onSetDefaultOutputProfile: ((OutputProfile) -> Void)?
     var onSetDeviceOutputProfile: ((String, OutputProfile) -> Void)?
-    var onCheckForUpdates: (() -> Void)? {
-        didSet { rebuildMenu() }
-    }
+    var onOpenTaskHistory: (() -> Void)?
+    var onTestDeviceSound: ((String) -> Void)?
     private var needsPairing: Bool
     private var hasRecoverableInput = false
     private var pairedDeviceIDs: [String]
@@ -226,6 +232,12 @@ final class StatusController {
             keyEquivalent: ","
         ))
 
+        menu.addItem(makeMenuItem(
+            title: L10n.taskHistory,
+            symbolName: "clock.arrow.circlepath",
+            action: #selector(openTaskHistory)
+        ))
+
         menu.addItem(NSMenuItem.separator())
 
         menu.addItem(makeMenuItem(
@@ -233,14 +245,6 @@ final class StatusController {
             symbolName: "safari",
             action: #selector(openWebsite)
         ))
-
-        if onCheckForUpdates != nil {
-            menu.addItem(makeMenuItem(
-                title: L10n.checkForAppUpdates,
-                symbolName: "arrow.triangle.2.circlepath",
-                action: #selector(checkForUpdates)
-            ))
-        }
 
         menu.addItem(makeMenuItem(
             title: L10n.quit,
@@ -343,6 +347,16 @@ final class StatusController {
             addThemeColorItems(to: submenu, deviceID: deviceID)
             addOverlayPositionItems(to: submenu, deviceID: deviceID)
             addDeviceTextItems(to: submenu, deviceID: deviceID)
+            submenu.addItem(NSMenuItem.separator())
+
+            let testSoundItem = makeMenuItem(
+                title: L10n.testDeviceSound,
+                symbolName: "speaker.wave.2",
+                action: #selector(testDeviceSound)
+            )
+            testSoundItem.representedObject = deviceID
+            testSoundItem.isEnabled = connectedDevice != nil
+            submenu.addItem(testSoundItem)
             submenu.addItem(NSMenuItem.separator())
 
             addFirmwareItems(to: submenu, deviceID: deviceID, isConnected: connectedDevice != nil)
@@ -489,6 +503,12 @@ final class StatusController {
         }
     }
 
+    private func setStatus(_ status: AppStatus) {
+        DispatchQueue.main.async {
+            self.updateStatusButton(status)
+        }
+    }
+
     func showListening(deviceID: String? = nil) {
         setStatus(L10n.listening)
         let overlay = overlay(for: deviceID)
@@ -498,7 +518,7 @@ final class StatusController {
     }
 
     func showPartial(_ text: String, deviceID: String? = nil) {
-        setStatus(text.isEmpty ? "Listening" : text)
+        setStatus(.listening)
         let overlay = overlay(for: deviceID)
         markOverlayVisible(for: deviceID)
         applyOverlayStyle(for: deviceID, overlay: overlay)
@@ -793,12 +813,17 @@ final class StatusController {
         onSetDefaultOutputProfile?(defaultOutputProfile)
     }
 
-    @objc private func checkForUpdates() {
-        onCheckForUpdates?()
-    }
-
     @objc private func openWebsite() {
         NSWorkspace.shared.open(AppConfig.websiteURL)
+    }
+
+    @objc private func openTaskHistory() {
+        onOpenTaskHistory?()
+    }
+
+    @objc private func testDeviceSound(_ sender: NSMenuItem) {
+        guard let deviceID = sender.representedObject as? String else { return }
+        onTestDeviceSound?(deviceID)
     }
 
     @objc private func quitApp() {

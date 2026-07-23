@@ -2,15 +2,40 @@ import AppKit
 
 final class SettingsWindowController: NSWindowController {
     private let providerPopup = NSPopUpButton()
-    private let apiKeyField = NSTextField()
-    private let volcengineAppKeyField = NSTextField()
+    private let apiKeyField = NSSecureTextField()
+    private let volcengineAppKeyField = NSSecureTextField()
     private let applyTrialAPIKeyButton = NSButton(title: L10n.applyTrial, target: nil, action: nil)
     private let resourcePopup = NSPopUpButton()
     private let hotwordsTextView = NSTextView()
     private let hotwordsScrollView = NSScrollView()
     private let llmBaseURLField = NSTextField()
-    private let llmAPIKeyField = NSTextField()
+    private let llmAPIKeyField = NSSecureTextField()
     private let llmModelField = NSTextField()
+    private let agentPopup = NSPopUpButton()
+    private let agentWorkingDirectoryField = NSTextField()
+    private let agentTimeoutField = NSTextField()
+    private let agentSoundAlertsButton = NSButton(
+        checkboxWithTitle: currentLanguage == .chinese ? "任务结束时在设备播放提示音" : "Play task alerts on device",
+        target: nil,
+        action: nil
+    )
+    private let agentBypassApprovalsButton = NSButton(
+        checkboxWithTitle: currentLanguage == .chinese ? "绕过 Agent 授权（高风险）" : "Bypass Agent approvals (high risk)",
+        target: nil,
+        action: nil
+    )
+    private let agentMemoryButton = NSButton(
+        checkboxWithTitle: currentLanguage == .chinese ? "记住使用习惯和项目上下文" : "Remember preferences and project context",
+        target: nil,
+        action: nil
+    )
+    private let deviceSoundVolumeSlider = NSSlider()
+    private let deviceSoundVolumeLabel = NSTextField(labelWithString: "70%")
+    private let testDeviceSoundButton = NSButton(
+        title: currentLanguage == .chinese ? "测试" : "Test",
+        target: nil,
+        action: nil
+    )
     private let debugAudioButton = NSButton(checkboxWithTitle: L10n.saveDebugAudioFiles, target: nil, action: nil)
     private let debugAudioDirectoryField = NSTextField()
     private let languagePopup = NSPopUpButton()
@@ -18,13 +43,14 @@ final class SettingsWindowController: NSWindowController {
     private var currentDisplayedProvider: ASRProvider = .volcengine
     private var resourceRow: NSStackView?
     var onConfigChanged: ((AppConfig) -> Void)?
+    var onTestDeviceSoundVolume: ((Int) -> Bool)?
 
     private var config: AppConfig
 
     init(config: AppConfig = AppConfig.load()) {
         self.config = config
         let window = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 560, height: 560),
+            contentRect: NSRect(x: 0, y: 0, width: 640, height: 1000),
             styleMask: [.titled, .closable, .miniaturizable],
             backing: .buffered,
             defer: false
@@ -88,6 +114,79 @@ final class SettingsWindowController: NSWindowController {
         stack.addArrangedSubview(row(label: L10n.apiKey, control: llmAPIKeyField))
         stack.addArrangedSubview(row(label: L10n.model, control: llmModelField))
 
+        stack.addArrangedSubview(sectionTitle("Agent"))
+        stack.addArrangedSubview(row(
+            label: currentLanguage == .chinese ? "默认 Agent" : "Default Agent",
+            control: agentPopup
+        ))
+        let agentDirectoryRow = NSStackView()
+        agentDirectoryRow.orientation = .horizontal
+        agentDirectoryRow.alignment = .centerY
+        agentDirectoryRow.spacing = 8
+        agentWorkingDirectoryField.isEditable = false
+        agentWorkingDirectoryField.lineBreakMode = .byTruncatingMiddle
+        let chooseAgentDirectoryButton = NSButton(
+            title: L10n.choose,
+            target: self,
+            action: #selector(chooseAgentWorkingDirectory)
+        )
+        agentDirectoryRow.addArrangedSubview(agentWorkingDirectoryField)
+        agentDirectoryRow.addArrangedSubview(chooseAgentDirectoryButton)
+        agentWorkingDirectoryField.widthAnchor.constraint(equalToConstant: 260).isActive = true
+        stack.addArrangedSubview(row(
+            label: currentLanguage == .chinese ? "工程目录" : "Project Folder",
+            control: agentDirectoryRow
+        ))
+        agentTimeoutField.placeholderString = "600"
+        stack.addArrangedSubview(row(
+            label: currentLanguage == .chinese ? "超时（秒）" : "Timeout (sec)",
+            control: agentTimeoutField
+        ))
+        stack.addArrangedSubview(hintRow(
+            currentLanguage == .chinese
+                ? "会话会按 Agent、工程目录和语义自动延续。说“新会话”可强制新建，说“继续会话”可强制接续。"
+                : "Sessions continue automatically by agent, project, and context. Say “new conversation” or “continue conversation” to override."
+        ))
+        let memoryControls = NSStackView()
+        memoryControls.orientation = .horizontal
+        memoryControls.spacing = 8
+        let viewMemoryButton = NSButton(title: currentLanguage == .chinese ? "查看记忆" : "View Memory", target: self, action: #selector(openAgentMemory))
+        let clearMemoryButton = NSButton(title: currentLanguage == .chinese ? "清除记忆" : "Clear Memory", target: self, action: #selector(clearAgentMemory))
+        memoryControls.addArrangedSubview(agentMemoryButton)
+        memoryControls.addArrangedSubview(viewMemoryButton)
+        memoryControls.addArrangedSubview(clearMemoryButton)
+        stack.addArrangedSubview(row(label: currentLanguage == .chinese ? "长期记忆" : "Memory", control: memoryControls))
+        stack.addArrangedSubview(hintRow(currentLanguage == .chinese
+            ? "自动识别“记住、以后、我偏好”等明确表达；不会保存 API Key、密码或全部对话原文。"
+            : "Stores explicit preferences such as “remember” or “I prefer”; never stores keys, passwords, or complete transcripts."))
+        stack.addArrangedSubview(row(
+            label: currentLanguage == .chinese ? "授权模式" : "Approval Mode",
+            control: agentBypassApprovalsButton
+        ))
+        stack.addArrangedSubview(hintRow(
+            currentLanguage == .chinese
+                ? "默认在任务历史中允许或拒绝。开启后 Agent 可不经确认执行命令和修改文件。"
+                : "By default, approve or deny in Task History. When enabled, the Agent may run commands and edit files without confirmation."
+        ))
+        stack.addArrangedSubview(row(
+            label: currentLanguage == .chinese ? "设备提示音" : "Device Sound",
+            control: agentSoundAlertsButton
+        ))
+        configureDeviceSoundVolumeControl()
+        let volumeControls = NSStackView()
+        volumeControls.orientation = .horizontal
+        volumeControls.alignment = .centerY
+        volumeControls.spacing = 8
+        volumeControls.addArrangedSubview(deviceSoundVolumeSlider)
+        volumeControls.addArrangedSubview(deviceSoundVolumeLabel)
+        volumeControls.addArrangedSubview(testDeviceSoundButton)
+        deviceSoundVolumeSlider.widthAnchor.constraint(equalToConstant: 205).isActive = true
+        deviceSoundVolumeLabel.widthAnchor.constraint(equalToConstant: 42).isActive = true
+        stack.addArrangedSubview(row(
+            label: currentLanguage == .chinese ? "提示音音量" : "Sound Volume",
+            control: volumeControls
+        ))
+
         stack.addArrangedSubview(sectionTitle(L10n.language))
         configureLanguagePopup()
         stack.addArrangedSubview(row(label: L10n.language, control: languagePopup))
@@ -134,6 +233,18 @@ final class SettingsWindowController: NSWindowController {
 
     private func configureResourcePopup() {
         resourcePopup.addItems(withTitles: AppConfig.supportedResourceIDs)
+    }
+
+    private func configureDeviceSoundVolumeControl() {
+        deviceSoundVolumeSlider.minValue = 0
+        deviceSoundVolumeSlider.maxValue = 100
+        deviceSoundVolumeSlider.numberOfTickMarks = 11
+        deviceSoundVolumeSlider.allowsTickMarkValuesOnly = false
+        deviceSoundVolumeSlider.isContinuous = true
+        deviceSoundVolumeSlider.target = self
+        deviceSoundVolumeSlider.action = #selector(deviceSoundVolumeChanged)
+        testDeviceSoundButton.target = self
+        testDeviceSoundButton.action = #selector(testDeviceSound)
     }
 
     private func configureProviderPopup() {
@@ -197,8 +308,24 @@ final class SettingsWindowController: NSWindowController {
         }
     }
 
+    private func configureAgentPopup() {
+        agentPopup.removeAllItems()
+        for name in config.agentConfig.agents.keys.sorted() {
+            switch name {
+            case "claude":
+                agentPopup.addItem(withTitle: "Claude Code")
+            case "codex":
+                agentPopup.addItem(withTitle: "Codex")
+            default:
+                agentPopup.addItem(withTitle: name)
+            }
+            agentPopup.lastItem?.representedObject = name
+        }
+    }
+
 
     private func loadConfigIntoFields() {
+        configureAgentPopup()
         currentDisplayedProvider = config.asrProvider
         providerPopup.selectItem(withTitle: config.asrProvider.displayName)
         apiKeyField.stringValue = apiKey(for: config.asrProvider)
@@ -207,6 +334,18 @@ final class SettingsWindowController: NSWindowController {
         llmBaseURLField.stringValue = config.llmBaseURL
         llmAPIKeyField.stringValue = config.llmAPIKey
         llmModelField.stringValue = config.llmModel
+        if let item = agentPopup.itemArray.first(where: {
+            ($0.representedObject as? String) == config.agentConfig.defaultAgent.lowercased()
+        }) {
+            agentPopup.select(item)
+        }
+        agentWorkingDirectoryField.stringValue = config.agentConfig.workingDirectory.path
+        agentTimeoutField.stringValue = String(config.agentConfig.timeoutSeconds)
+        agentSoundAlertsButton.state = config.agentSoundAlertsEnabled ? .on : .off
+        agentBypassApprovalsButton.state = config.agentBypassApprovals ? .on : .off
+        agentMemoryButton.state = config.agentMemoryEnabled ? .on : .off
+        deviceSoundVolumeSlider.integerValue = config.deviceSoundVolume
+        updateDeviceSoundVolumeLabel()
         languagePopup.selectItem(withTitle: config.appLanguage.displayName)
         debugAudioButton.state = config.debugAudioCache ? .on : .off
         debugAudioDirectoryField.stringValue = config.debugAudioDirectory.path
@@ -230,6 +369,21 @@ final class SettingsWindowController: NSWindowController {
 
     @objc private func apiKeyFieldDidChange() {
         updateApplyTrialButton()
+    }
+
+    @objc private func deviceSoundVolumeChanged() {
+        updateDeviceSoundVolumeLabel()
+    }
+
+    @objc private func testDeviceSound() {
+        let sent = onTestDeviceSoundVolume?(deviceSoundVolumeSlider.integerValue) ?? false
+        statusLabel.stringValue = sent
+            ? (currentLanguage == .chinese ? "已发送测试提示音" : "Test sound sent")
+            : (currentLanguage == .chinese ? "设备未连接" : "Device not connected")
+    }
+
+    private func updateDeviceSoundVolumeLabel() {
+        deviceSoundVolumeLabel.stringValue = "\(deviceSoundVolumeSlider.integerValue)%"
     }
 
     @objc private func applyTrialAPIKey() {
@@ -282,10 +436,48 @@ final class SettingsWindowController: NSWindowController {
         }
     }
 
+    @objc private func chooseAgentWorkingDirectory() {
+        let panel = NSOpenPanel()
+        panel.canChooseDirectories = true
+        panel.canChooseFiles = false
+        panel.allowsMultipleSelection = false
+        panel.prompt = L10n.choose
+        panel.directoryURL = URL(fileURLWithPath: agentWorkingDirectoryField.stringValue, isDirectory: true)
+        if panel.runModal() == .OK, let url = panel.url {
+            agentWorkingDirectoryField.stringValue = url.path
+        }
+    }
+
     @objc private func saveSettings() {
         saveDisplayedAPIKey()
         let provider = selectedProvider()
         let resourceID = resourcePopup.titleOfSelectedItem ?? config.resourceID
+        let agentName = (agentPopup.selectedItem?.representedObject as? String) ?? config.agentConfig.defaultAgent
+        guard let timeoutSeconds = Int(agentTimeoutField.stringValue), timeoutSeconds >= 10 else {
+            showErrorAlert(
+                title: currentLanguage == .chinese ? "无法保存设置" : "Could Not Save Settings",
+                message: currentLanguage == .chinese ? "Agent 超时时间不能少于 10 秒。" : "Agent timeout must be at least 10 seconds."
+            )
+            return
+        }
+        let agentDirectory = URL(
+            fileURLWithPath: agentWorkingDirectoryField.stringValue,
+            isDirectory: true
+        )
+        var isDirectory: ObjCBool = false
+        guard FileManager.default.fileExists(atPath: agentDirectory.path, isDirectory: &isDirectory), isDirectory.boolValue else {
+            showErrorAlert(
+                title: currentLanguage == .chinese ? "无法保存设置" : "Could Not Save Settings",
+                message: currentLanguage == .chinese ? "请选择一个有效的工程目录。" : "Choose a valid project folder."
+            )
+            return
+        }
+        let agentConfig = AgentCLIConfig(
+            defaultAgent: agentName,
+            workingDirectory: agentDirectory,
+            timeoutSeconds: timeoutSeconds,
+            agents: config.agentConfig.agents
+        )
 
         config = AppConfig(
             asrProvider: provider,
@@ -304,10 +496,13 @@ final class SettingsWindowController: NSWindowController {
             deviceOverlayPositions: config.deviceOverlayPositions,
             defaultOutputProfile: config.defaultOutputProfile,
             deviceOutputProfiles: config.deviceOutputProfiles,
-            agentConfig: config.agentConfig,
+            agentConfig: agentConfig,
             autoEnter: config.autoEnter,
             agentCaptureEnabled: config.agentCaptureEnabled,
-            agentSoundAlertsEnabled: config.agentSoundAlertsEnabled,
+            agentSoundAlertsEnabled: agentSoundAlertsButton.state == .on,
+            agentBypassApprovals: agentBypassApprovalsButton.state == .on,
+            agentMemoryEnabled: agentMemoryButton.state == .on,
+            deviceSoundVolume: deviceSoundVolumeSlider.integerValue,
             debugAudioCache: debugAudioButton.state == .on,
             debugAudioDirectory: URL(fileURLWithPath: debugAudioDirectoryField.stringValue, isDirectory: true),
             appLanguage: (languagePopup.selectedItem?.representedObject as? String).flatMap { AppLanguage(rawValue: $0) } ?? .system
@@ -327,6 +522,22 @@ final class SettingsWindowController: NSWindowController {
 
     @objc private func openConfigFolder() {
         AppConfig.openConfigDirectory()
+    }
+
+    @objc private func openAgentMemory() {
+        AgentMemoryStore.openMemoryFile()
+    }
+
+    @objc private func clearAgentMemory() {
+        let alert = NSAlert()
+        alert.messageText = currentLanguage == .chinese ? "清除全部长期记忆？" : "Clear all long-term memory?"
+        alert.informativeText = currentLanguage == .chinese ? "会话历史文件不会被删除。" : "Task history files will not be deleted."
+        alert.addButton(withTitle: currentLanguage == .chinese ? "清除" : "Clear")
+        alert.addButton(withTitle: currentLanguage == .chinese ? "取消" : "Cancel")
+        if alert.runModal() == .alertFirstButtonReturn {
+            AgentMemoryStore().clear()
+            statusLabel.stringValue = currentLanguage == .chinese ? "记忆已清除" : "Memory cleared"
+        }
     }
 
     private func selectedProvider() -> ASRProvider {

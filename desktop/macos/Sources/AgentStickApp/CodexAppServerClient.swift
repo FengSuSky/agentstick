@@ -8,6 +8,7 @@ final class CodexAppServerClient {
     private var stdin: FileHandle?
     private var nextRequestID = 1
     private var threadTitles: [String: String] = [:]
+    private var initializeRequestID: Int?
 
     var isRunning: Bool { process?.isRunning == true }
 
@@ -71,9 +72,11 @@ final class CodexAppServerClient {
     // MARK: - JSON-RPC
 
     private func sendInitialize() {
+        let id = nextID()
+        initializeRequestID = id
         let request: [String: Any] = [
             "jsonrpc": "2.0",
-            "id": nextID(),
+            "id": id,
             "method": "initialize",
             "params": [
                 "clientInfo": [
@@ -118,6 +121,12 @@ final class CodexAppServerClient {
 
     private func processLine(_ data: Data) {
         guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            return
+        }
+
+        if let id = json["id"] as? Int, id == initializeRequestID, json["result"] != nil {
+            sendJSON(["jsonrpc": "2.0", "method": "initialized", "params": [:]])
+            initializeRequestID = nil
             return
         }
 

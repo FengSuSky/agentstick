@@ -31,17 +31,33 @@ This repository is still in the migration and adaptation stage from VoiceStick. 
 - Button-triggered recording with Opus-encoded microphone audio over BLE.
 - A macOS desktop app that receives audio, calls ASR, and displays recognized text.
 - Text insertion into the focused desktop app.
+- Direct dispatch of recognized tasks to Claude Code or Codex CLI, with local result capture.
+- Device status updates and sound alerts for running, completed, failed, and needs-input agent states.
 - A working adaptation for the Lichuang ESP32-S3 development board.
 - Verified Volcengine ASR configuration and local macOS packaging flow.
 
 Planned AgentStick capabilities:
 
-- Route recognized voice tasks to Codex CLI / Codex desktop workflows.
-- Route tasks to Claude Code.
 - Maintain a task queue with task status and completion reminders.
 - Notify the user when background agent work finishes.
-- Show agent execution status on the device screen.
 - Support multiple agent backends and configurable task templates.
+
+### Using voice-driven agents on macOS
+
+1. Install and sign in to the `claude` or `codex` CLI.
+2. Open AgentStick Settings. In the Agent section, choose Claude Code or Codex and select the project folder the agent may work in.
+3. Choose Agent Run from the menu bar's Output menu. Devices with a side button can also switch modes while idle.
+4. Hold the recording button and speak a task. After you confirm the transcript, the desktop app runs the selected agent in that project folder.
+
+Safe approval mode is the default. When Claude or Codex asks to run a privileged command or expand file access, AgentStick opens Task History with working Allow and Deny buttons. For unattended execution, enable “Bypass Agent approvals (high risk)” in the Agent settings; the agent will then stop asking for individual approvals.
+
+Task History also handles agent-initiated confirmations (such as commit, push, or deploy), choice and free-text questions, secret fields, and MCP browser-login or form requests. After approval or an answer, AgentStick resumes the original Claude session or Codex thread instead of recording the waiting message as a completed task.
+
+Within the same agent and project folder, Agent Run uses follow-up cues, recency, and task similarity to decide whether to create or resume a Claude session or Codex thread. Start with “new conversation” to force a new session or “continue conversation” to force the most recent one. Clearing history also removes the local continuation index.
+
+With Long-term Memory enabled, AgentStick stores stable preferences and project context from explicit phrases such as “remember,” “from now on,” “I prefer,” or “for this project.” Relevant memories are supplied to later Claude/Codex tasks. Memory can be viewed or cleared in Settings; API keys, passwords, and complete transcripts are not stored automatically.
+
+Results are saved under `~/Library/Application Support/AgentStick/Tasks/`. The app discovers common Homebrew, NVM, Volta, and Bun installations, plus the Codex CLI bundled with Codex.app or ChatGPT.app. Custom commands remain configurable through `[agents.*]` in `config.toml`.
 
 ## Architecture
 
@@ -205,8 +221,8 @@ Original project:
 
 Near-term priorities:
 
-1. Connect Codex / Claude Code task dispatch into the macOS desktop app.
-2. Design an agent task state machine: queued, running, done, failed, needs input.
-3. Add desktop notifications and device screen status updates.
+1. Add a persistent task queue and voice follow-up for needs-input states.
+2. Add richer desktop notifications and a task history UI.
+3. Improve session resumption for Codex and Claude Code.
 4. Continue hardening the board-target abstraction for Lichuang ESP32-S3 and M5Stack StickS3.
 5. Gradually migrate configuration paths, app names, and UI copy from VoiceStick to AgentStick.

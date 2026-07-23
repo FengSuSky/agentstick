@@ -128,6 +128,14 @@ enum BleProtocol {
         return (try? JSONSerialization.data(withJSONObject: payload)) ?? Data()
     }
 
+    static func soundVolumePayload(_ volume: Int) -> Data {
+        let payload: [String: Any] = [
+            "event": "sound_volume",
+            "volume": min(100, max(0, volume))
+        ]
+        return (try? JSONSerialization.data(withJSONObject: payload)) ?? Data()
+    }
+
     static func otaBeginPayload(imageSize: UInt32, transferID: UInt32) -> Data {
         var data = Data([1, otaTypeBegin, 12, 0])
         data.appendLittleEndian(imageSize)

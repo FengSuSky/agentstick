@@ -147,6 +147,9 @@ struct AppConfig {
     var autoEnter: Bool
     var agentCaptureEnabled: Bool
     var agentSoundAlertsEnabled: Bool
+    var agentBypassApprovals: Bool
+    var agentMemoryEnabled: Bool
+    var deviceSoundVolume: Int
     var debugAudioCache: Bool
     var debugAudioDirectory: URL
     var appLanguage: AppLanguage
@@ -174,7 +177,7 @@ struct AppConfig {
 
     static let defaultAgentStickCloudURL = "wss://api.xiaozhi.me/agentstick/asr/"
     static let volcengineWebSocketURL = "wss://openspeech.bytedance.com/api/v3/sauc/bigmodel_async"
-    static let websiteURL = URL(string: "https://78.github.io/agentstick/")!
+    static let websiteURL = URL(string: "https://shanhaistudio.lycheeai.com.cn/marketing")!
     static let firmwareManifestURL = URL(
         string: "https://xiaozhi-voice-assistant.oss-cn-shenzhen.aliyuncs.com/agentstick/firmwares/latest/manifest.json"
     )!
@@ -206,6 +209,9 @@ struct AppConfig {
             autoEnter: true,
             agentCaptureEnabled: true,
             agentSoundAlertsEnabled: true,
+            agentBypassApprovals: false,
+            agentMemoryEnabled: true,
+            deviceSoundVolume: 70,
             debugAudioCache: false,
             debugAudioDirectory: defaultDebugAudioDirectory,
             appLanguage: .system
@@ -261,6 +267,9 @@ struct AppConfig {
             autoEnter: file.auto_enter ?? defaults.autoEnter,
             agentCaptureEnabled: file.agent_capture_enabled ?? defaults.agentCaptureEnabled,
             agentSoundAlertsEnabled: file.agent_sound_alerts_enabled ?? defaults.agentSoundAlertsEnabled,
+            agentBypassApprovals: file.agent_bypass_approvals ?? defaults.agentBypassApprovals,
+            agentMemoryEnabled: file.agent_memory_enabled ?? defaults.agentMemoryEnabled,
+            deviceSoundVolume: volumeValue(file.device_sound_volume, default: defaults.deviceSoundVolume),
             debugAudioCache: file.debug_audio_cache ?? defaults.debugAudioCache,
             debugAudioDirectory: directoryValue(file.debug_audio_dir, default: defaults.debugAudioDirectory),
             appLanguage: file.app_language.flatMap { AppLanguage(rawValue: $0) } ?? defaults.appLanguage
@@ -287,6 +296,9 @@ struct AppConfig {
         auto_enter = \(autoEnter.tomlValue)
         agent_capture_enabled = \(agentCaptureEnabled.tomlValue)
         agent_sound_alerts_enabled = \(agentSoundAlertsEnabled.tomlValue)
+        agent_bypass_approvals = \(agentBypassApprovals.tomlValue)
+        agent_memory_enabled = \(agentMemoryEnabled.tomlValue)
+        device_sound_volume = \(deviceSoundVolume)
         debug_audio_cache = \(debugAudioCache.tomlValue)
         debug_audio_dir = "\(debugAudioDirectory.path.tomlEscaped)"
         app_language = "\(appLanguage.rawValue.tomlEscaped)"
@@ -343,6 +355,9 @@ struct AppConfig {
             autoEnter: boolValue(values["auto_enter"], default: defaults.autoEnter),
             agentCaptureEnabled: boolValue(values["agent_capture_enabled"], default: defaults.agentCaptureEnabled),
             agentSoundAlertsEnabled: boolValue(values["agent_sound_alerts_enabled"], default: defaults.agentSoundAlertsEnabled),
+            agentBypassApprovals: boolValue(values["agent_bypass_approvals"], default: defaults.agentBypassApprovals),
+            agentMemoryEnabled: boolValue(values["agent_memory_enabled"], default: defaults.agentMemoryEnabled),
+            deviceSoundVolume: volumeValue(values["device_sound_volume"].flatMap(Int.init), default: defaults.deviceSoundVolume),
             debugAudioCache: boolValue(values["debug_audio_cache"], default: defaults.debugAudioCache),
             debugAudioDirectory: directoryValue(values["debug_audio_dir"], default: defaults.debugAudioDirectory),
             appLanguage: values["app_language"].flatMap { AppLanguage(rawValue: $0) } ?? defaults.appLanguage
@@ -369,6 +384,10 @@ struct AppConfig {
         default:
             return defaultValue
         }
+    }
+
+    private static func volumeValue(_ value: Int?, default defaultValue: Int) -> Int {
+        min(100, max(0, value ?? defaultValue))
     }
 
     private static func directoryValue(_ text: String?, default defaultValue: URL) -> URL {
@@ -621,6 +640,9 @@ private struct ConfigFile: Decodable {
     var auto_enter: Bool?
     var agent_capture_enabled: Bool?
     var agent_sound_alerts_enabled: Bool?
+    var agent_bypass_approvals: Bool?
+    var agent_memory_enabled: Bool?
+    var device_sound_volume: Int?
     var debug_audio_cache: Bool?
     var debug_audio_dir: String?
     var app_language: String?

@@ -10,5 +10,7 @@ typedef enum {
 } audio_playback_sound_t;
 
 esp_err_t audio_playback_init(void);
+esp_err_t audio_playback_set_volume(int volume);
+int audio_playback_get_volume(void);
 esp_err_t audio_playback_play(audio_playback_sound_t sound);
 bool audio_playback_is_busy(void);

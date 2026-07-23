@@ -538,6 +538,7 @@ static void ble_control_cb(const char *json)
     const cJSON *text = cJSON_GetObjectItemCaseSensitive(root, "text");
     const cJSON *mode = cJSON_GetObjectItemCaseSensitive(root, "mode");
     const cJSON *sound = cJSON_GetObjectItemCaseSensitive(root, "sound");
+    const cJSON *volume = cJSON_GetObjectItemCaseSensitive(root, "volume");
     if (cJSON_IsString(event) && strcmp(event->valuestring, "ui_state") == 0 &&
         cJSON_IsString(state)) {
         queue_ui_state_event(state->valuestring, cJSON_IsString(text) ? text->valuestring : "");
@@ -560,6 +561,14 @@ static void ble_control_cb(const char *json)
             (void)audio_playback_play(AUDIO_PLAYBACK_SOUND_NEEDS_INPUT);
         } else {
             ESP_LOGW(TAG, "unknown sound %s", sound->valuestring);
+        }
+    } else if (cJSON_IsString(event) && strcmp(event->valuestring, "sound_volume") == 0 &&
+               cJSON_IsNumber(volume)) {
+        const int requested_volume = volume->valueint;
+        esp_err_t err = audio_playback_set_volume(requested_volume);
+        if (err != ESP_OK) {
+            ESP_LOGW(TAG, "set sound volume=%d failed: %s",
+                     requested_volume, esp_err_to_name(err));
         }
     }
     cJSON_Delete(root);

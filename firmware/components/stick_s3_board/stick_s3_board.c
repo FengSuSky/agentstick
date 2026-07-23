@@ -40,6 +40,7 @@ static i2c_master_dev_handle_t s_pca9557_dev;
 #define PCA9557_DEFAULT_OUTPUT 0x03
 #define PCA9557_DEFAULT_CONFIG 0xf8
 #define PCA9557_LCD_CS BIT(0)
+#define PCA9557_PA_EN BIT(1)
 #endif
 
 #define M5PM1_PWR_CFG_LDO_EN BIT(2)
@@ -392,6 +393,27 @@ esp_err_t stick_s3_board_lcd_select(bool selected)
     return err;
 #else
     (void)selected;
+    return ESP_OK;
+#endif
+}
+
+esp_err_t stick_s3_board_speaker_enable(bool enabled)
+{
+#if STICK_S3_BOARD_HAS_PCA9557
+    if (!s_pca9557_dev) {
+        return ESP_ERR_INVALID_STATE;
+    }
+    esp_err_t err = pca9557_update_reg(
+        PCA9557_REG_OUTPUT,
+        enabled ? 0 : PCA9557_PA_EN,
+        enabled ? PCA9557_PA_EN : 0);
+    if (err == ESP_OK) {
+        ESP_LOGI(TAG, "speaker amplifier %s", enabled ? "enabled" : "disabled");
+    }
+    return err;
+#else
+    /* StickS3 powers its speaker rail during PMIC initialization. */
+    (void)enabled;
     return ESP_OK;
 #endif
 }

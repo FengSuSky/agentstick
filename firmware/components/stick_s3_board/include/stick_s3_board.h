@@ -84,6 +84,7 @@
 esp_err_t stick_s3_board_init(void);
 i2c_master_bus_handle_t stick_s3_board_i2c_bus(void);
 esp_err_t stick_s3_board_lcd_select(bool selected);
+esp_err_t stick_s3_board_speaker_enable(bool enabled);
 esp_err_t stick_s3_board_battery_voltage_mv(int *voltage_mv);
 esp_err_t stick_s3_board_vbus_voltage_mv(int *voltage_mv);
 esp_err_t stick_s3_board_battery_level(int *level_percent);

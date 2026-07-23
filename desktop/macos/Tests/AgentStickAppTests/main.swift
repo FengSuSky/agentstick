@@ -119,4 +119,18 @@ bridgeServer.stop()
 expect(waitResult == .success, "Bridge server should receive client envelope")
 expect(receivedEnvelope?.source == "claude", "Bridge should preserve source")
 expect(String(data: receivedEnvelope?.payload ?? Data(), encoding: .utf8) == "{\"hello\":true}", "Bridge should preserve payload")
+
+let approvalSocketURL = URL(fileURLWithPath: "/tmp/as-approval-\(getpid()).sock")
+let approvalServer = AgentEventBridgeServer(socketURL: approvalSocketURL)
+approvalServer.onApprovalEnvelope = { envelope, reply in
+    expect(envelope.expectsReply, "Approval envelope should request a reply")
+    reply(true)
+}
+try approvalServer.start()
+let approvalReply = try AgentEventBridgeClient.requestApproval(
+    AgentHookEnvelope(source: "claude", payload: Data("{}".utf8), expectsReply: true),
+    to: approvalSocketURL
+)
+approvalServer.stop()
+expect(approvalReply.allowed, "Bridge should return the UI approval decision")
 print("AgentStickCoreTests passed")

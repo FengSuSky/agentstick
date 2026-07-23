@@ -73,8 +73,11 @@ enum L10n {
     static var website: String {
         currentLanguage == .chinese ? "官网" : "Website"
     }
-    static var checkForAppUpdates: String {
-        currentLanguage == .chinese ? "检查应用更新…" : "Check for App Updates..."
+    static var taskHistory: String {
+        currentLanguage == .chinese ? "任务历史…" : "Task History..."
+    }
+    static var testDeviceSound: String {
+        currentLanguage == .chinese ? "测试设备提示音" : "Test Device Sound"
     }
     static var quit: String {
         currentLanguage == .chinese ? "退出" : "Quit"

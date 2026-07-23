@@ -70,14 +70,16 @@ final class BleCentral: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate
     private var otaCharacteristics: [UUID: CBCharacteristic] = [:]
     private var firmwareUpdateSession: FirmwareUpdateSession?
     private var interactionMode: InteractionMode = .holdToTalk
+    private var soundVolume: Int
     private var isWorkspaceSleeping = false
 
     var onConnectionChange: (([ConnectedAgentStickDevice]) -> Void)?
     var onAudioFrame: ((UUID, AudioFrame) -> Void)?
     var onStateEvent: ((UUID, StateEvent) -> Void)?
 
-    init(pairedDeviceIDs: [String]) {
+    init(pairedDeviceIDs: [String], soundVolume: Int = 70) {
         self.pairedDeviceIDs = Set(pairedDeviceIDs)
+        self.soundVolume = min(100, max(0, soundVolume))
         super.init()
     }
 
@@ -168,6 +170,8 @@ final class BleCentral: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate
                 let deviceID = connectedDevices[peripheralID]?.deviceID ?? "unknown"
                 NSLog("BLE play_sound sound=\(sound) dev=VS-\(deviceID)")
                 peripheral.writeValue(data, for: characteristic, type: .withoutResponse)
+            } else {
+                NSLog("BLE play_sound skipped missing connection sound=\(sound) id=\(peripheralID)")
             }
             return
         }
@@ -176,6 +180,37 @@ final class BleCentral: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate
         for (id, characteristic) in controlCharacteristics {
             peripherals[id]?.writeValue(data, for: characteristic, type: .withoutResponse)
         }
+    }
+
+    func sendSoundVolume(_ volume: Int, to peripheralID: UUID? = nil) {
+        soundVolume = min(100, max(0, volume))
+        let data = BleProtocol.soundVolumePayload(soundVolume)
+        if let peripheralID {
+            guard let characteristic = controlCharacteristics[peripheralID],
+                  let peripheral = peripherals[peripheralID] else { return }
+            peripheral.writeValue(data, for: characteristic, type: .withoutResponse)
+            return
+        }
+
+        for (id, characteristic) in controlCharacteristics {
+            peripherals[id]?.writeValue(data, for: characteristic, type: .withoutResponse)
+        }
+        NSLog("BLE sound_volume=\(soundVolume) targets=\(controlCharacteristics.count)")
+    }
+
+    @discardableResult
+    func playSound(_ sound: String, for deviceID: String) -> Bool {
+        guard let peripheralID = connectedDevices.first(where: { $0.value.deviceID == deviceID })?.key,
+              let characteristic = controlCharacteristics[peripheralID],
+              let peripheral = peripherals[peripheralID]
+        else {
+            NSLog("BLE play_sound skipped disconnected sound=\(sound) dev=VS-\(deviceID)")
+            return false
+        }
+        let data = BleProtocol.playSoundPayload(sound)
+        NSLog("BLE play_sound test sound=\(sound) dev=VS-\(deviceID)")
+        peripheral.writeValue(data, for: characteristic, type: .withoutResponse)
+        return true
     }
 
     func updateFirmware(image: Data, for deviceID: String,
@@ -231,6 +266,10 @@ final class BleCentral: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate
 
     func isConnected(deviceID: String) -> Bool {
         connectedDevices.values.contains { $0.deviceID == deviceID }
+    }
+
+    var hasConnectedDevice: Bool {
+        !connectedDevices.isEmpty
     }
 
     func centralManagerDidUpdateState(_ central: CBCentralManager) {
@@ -305,6 +344,7 @@ final class BleCentral: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate
                 controlCharacteristics[peripheral.identifier] = characteristic
                 sendUIState("ready", to: peripheral.identifier)
                 sendInteractionMode(interactionMode, to: peripheral.identifier)
+                sendSoundVolume(soundVolume, to: peripheral.identifier)
             case BleProtocol.otaRXUUID:
                 otaCharacteristics[peripheral.identifier] = characteristic
             case BleProtocol.otaStateUUID:

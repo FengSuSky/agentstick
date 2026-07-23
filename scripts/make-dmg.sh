@@ -22,6 +22,25 @@ if [ ! -d "$APP_PATH" ]; then
     exit 1
 fi
 
+APP_EXECUTABLE="$APP_PATH/Contents/MacOS/AgentStickApp"
+SPARKLE_FRAMEWORK="$APP_PATH/Contents/Frameworks/Sparkle.framework"
+if [ ! -x "$APP_EXECUTABLE" ]; then
+    echo "Error: Application executable not found: $APP_EXECUTABLE"
+    exit 1
+fi
+if [ ! -d "$SPARKLE_FRAMEWORK" ]; then
+    echo "Error: Bundled Sparkle.framework not found: $SPARKLE_FRAMEWORK"
+    exit 1
+fi
+if ! otool -l "$APP_EXECUTABLE" | grep -Fq '@loader_path/../Frameworks'; then
+    echo "Adding bundled Frameworks runtime search path..."
+    install_name_tool -add_rpath "@loader_path/../Frameworks" "$APP_EXECUTABLE"
+fi
+if ! otool -l "$APP_EXECUTABLE" | grep -Fq '@loader_path/../Frameworks'; then
+    echo "Error: bundled Frameworks runtime search path is missing."
+    exit 1
+fi
+
 CODESIGN_IDENTITY="-"
 if security find-identity -v -p codesigning 2>/dev/null | grep -q "Developer ID Application"; then
     CODESIGN_IDENTITY="$(security find-identity -v -p codesigning | grep "Developer ID Application" | head -1 | awk -F'"' '{print $2}')"

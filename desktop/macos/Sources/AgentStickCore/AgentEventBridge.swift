@@ -5,11 +5,18 @@ import Foundation
 public struct AgentHookEnvelope: Codable, Sendable, Equatable {
     public var source: String
     public var payload: Data
+    public var expectsReply: Bool
 
-    public init(source: String, payload: Data) {
+    public init(source: String, payload: Data, expectsReply: Bool = false) {
         self.source = source
         self.payload = payload
+        self.expectsReply = expectsReply
     }
+}
+
+public struct AgentHookApprovalReply: Codable, Sendable, Equatable {
+    public var allowed: Bool
+    public init(allowed: Bool) { self.allowed = allowed }
 }
 
 public enum AgentEventBridgeLocation {
@@ -40,6 +47,7 @@ public final class AgentEventBridgeServer: @unchecked Sendable {
     private var clients: [Int32: ClientConnection] = [:]
 
     public var onEnvelope: ((AgentHookEnvelope) -> Void)?
+    public var onApprovalEnvelope: ((AgentHookEnvelope, @escaping (Bool) -> Void) -> Void)?
 
     public init(socketURL: URL = AgentEventBridgeLocation.defaultSocketURL) {
         self.socketURL = socketURL
@@ -150,10 +158,29 @@ public final class AgentEventBridgeServer: @unchecked Sendable {
             let line = client.buffer[..<newlineIndex]
             client.buffer.removeSubrange(...newlineIndex)
             if let envelope = try? JSONDecoder().decode(AgentHookEnvelope.self, from: Data(line)) {
-                onEnvelope?(envelope)
+                if envelope.expectsReply {
+                    onApprovalEnvelope?(envelope) { [weak self] allowed in
+                        self?.queue.async {
+                            self?.sendApprovalReply(allowed, to: fileDescriptor)
+                        }
+                    }
+                } else {
+                    onEnvelope?(envelope)
+                }
             }
         }
         clients[fileDescriptor] = client
+    }
+
+    private func sendApprovalReply(_ allowed: Bool, to fileDescriptor: Int32) {
+        guard clients[fileDescriptor] != nil,
+              var data = try? JSONEncoder().encode(AgentHookApprovalReply(allowed: allowed)) else { return }
+        data.append(UInt8(ascii: "\n"))
+        data.withUnsafeBytes { buffer in
+            guard let base = buffer.baseAddress else { return }
+            _ = Darwin.write(fileDescriptor, base, data.count)
+        }
+        closeClient(fileDescriptor)
     }
 
     private func closeClient(_ fileDescriptor: Int32) {
@@ -184,6 +211,31 @@ public enum AgentEventBridgeClient {
                 written += count
             }
         }
+    }
+
+    public static func requestApproval(_ envelope: AgentHookEnvelope, to socketURL: URL) throws -> AgentHookApprovalReply {
+        let fd = socket(AF_UNIX, SOCK_STREAM, 0)
+        guard fd != -1 else { throw AgentEventBridgeError.systemCallFailed("socket", errno) }
+        defer { close(fd) }
+        try connectSocket(fd, path: socketURL.path)
+        var data = try JSONEncoder().encode(envelope)
+        data.append(UInt8(ascii: "\n"))
+        try data.withUnsafeBytes { buffer in
+            guard let base = buffer.baseAddress else { return }
+            var written = 0
+            while written < data.count {
+                let count = Darwin.write(fd, base.advanced(by: written), data.count - written)
+                guard count > 0 else { throw AgentEventBridgeError.systemCallFailed("write", errno) }
+                written += count
+            }
+        }
+        var response = Data()
+        var byte: UInt8 = 0
+        while Darwin.read(fd, &byte, 1) == 1 {
+            if byte == UInt8(ascii: "\n") { break }
+            response.append(byte)
+        }
+        return try JSONDecoder().decode(AgentHookApprovalReply.self, from: response)
     }
 }
 

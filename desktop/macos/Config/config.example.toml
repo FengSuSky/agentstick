@@ -15,6 +15,9 @@ device_overlay_positions = ""
 auto_enter = true
 agent_capture_enabled = true
 agent_sound_alerts_enabled = true
+agent_bypass_approvals = false
+agent_memory_enabled = true
+device_sound_volume = 70
 debug_audio_cache = false
 # debug_audio_dir = "~/Library/Application Support/AgentStick/DebugAudio"
 
@@ -28,7 +31,7 @@ translation_target = "en"
 # Set [output].target to "agent_cli" to start in Agent Run mode.
 [agent]
 default = "claude" # or "codex"
-cwd = "/Users/fengsu/work/voicestick"
+cwd = "~/work/my-project"
 timeout_seconds = 600
 
 [agents.claude]

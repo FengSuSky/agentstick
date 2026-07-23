@@ -9,6 +9,7 @@
 #include "esp_codec_dev.h"
 #include "esp_codec_dev_defaults.h"
 #include "esp_log.h"
+#include "nvs.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 
@@ -22,9 +23,15 @@ static const char *TAG = "audio_playback";
 #define PLAY_TASK_STACK      4096
 #define PLAY_TASK_PRIO       4
 #define TONE_AMPLITUDE       12000 /* ~-3 dBFS for 16-bit PCM */
+#define PLAYBACK_VOLUME_DEFAULT 70
+#define PLAYBACK_VOLUME_MIN     0
+#define PLAYBACK_VOLUME_MAX     100
+#define PLAYBACK_NVS_NAMESPACE  "agentstick"
+#define PLAYBACK_NVS_VOLUME_KEY "sound_vol"
 
 static bool s_initialized;
 static volatile bool s_busy;
+static int s_volume = PLAYBACK_VOLUME_DEFAULT;
 static TaskHandle_t s_play_task;
 
 /* --- tone definitions --------------------------------------------------- */
@@ -71,6 +78,7 @@ static void play_task(void *arg)
 {
     const audio_playback_sound_t sound = (audio_playback_sound_t)(uintptr_t)arg;
     const sound_def_t *def = &s_sounds[sound];
+    bool speaker_enabled = false;
 
     /* Wait for any active recording session to finish. */
     int wait_ms = 0;
@@ -219,6 +227,13 @@ static void play_task(void *arg)
         goto cleanup_codec_if;
     }
 
+    esp_err_t speaker_err = stick_s3_board_speaker_enable(true);
+    if (speaker_err != ESP_OK) {
+        ESP_LOGE(TAG, "enable speaker amplifier: %s", esp_err_to_name(speaker_err));
+        goto cleanup_codec_dev;
+    }
+    speaker_enabled = true;
+
     esp_codec_dev_sample_info_t sample_info = {
         .bits_per_sample = 16,
         .channel         = 1,
@@ -230,6 +245,19 @@ static void play_task(void *arg)
         ESP_LOGE(TAG, "open playback codec");
         goto cleanup_codec_dev;
     }
+
+    const int volume = s_volume;
+    int codec_err = esp_codec_dev_set_out_vol(codec, volume);
+    if (codec_err != ESP_CODEC_DEV_OK) {
+        ESP_LOGE(TAG, "set playback volume=%d err=%d", volume, codec_err);
+        goto cleanup_open_codec;
+    }
+    codec_err = esp_codec_dev_set_out_mute(codec, false);
+    if (codec_err != ESP_CODEC_DEV_OK) {
+        ESP_LOGE(TAG, "unmute playback codec err=%d", codec_err);
+        goto cleanup_open_codec;
+    }
+    vTaskDelay(pdMS_TO_TICKS(20));
 
     /* --- generate and play tone segments --- */
     int16_t buf[TONE_BUF_FRAMES];
@@ -273,6 +301,8 @@ static void play_task(void *arg)
     ESP_LOGI(TAG, "playback done sound=%d", (int)sound);
 
     /* --- cleanup --- */
+cleanup_open_codec:
+    (void)esp_codec_dev_set_out_mute(codec, true);
     esp_codec_dev_close(codec);
 cleanup_codec_dev:
     esp_codec_dev_delete(codec);
@@ -288,6 +318,10 @@ cleanup_i2s:
     i2s_channel_disable(tx_handle);
     i2s_del_channel(tx_handle);
 
+    if (speaker_enabled) {
+        (void)stick_s3_board_speaker_enable(false);
+    }
+
     s_busy = false;
     s_play_task = NULL;
     vTaskDelete(NULL);
@@ -300,9 +334,47 @@ esp_err_t audio_playback_init(void)
     if (s_initialized) {
         return ESP_OK;
     }
+    nvs_handle_t nvs;
+    esp_err_t nvs_err = nvs_open(PLAYBACK_NVS_NAMESPACE, NVS_READONLY, &nvs);
+    if (nvs_err == ESP_OK) {
+        uint8_t stored_volume = PLAYBACK_VOLUME_DEFAULT;
+        nvs_err = nvs_get_u8(nvs, PLAYBACK_NVS_VOLUME_KEY, &stored_volume);
+        if (nvs_err == ESP_OK && stored_volume <= PLAYBACK_VOLUME_MAX) {
+            s_volume = stored_volume;
+        }
+        nvs_close(nvs);
+    }
     s_initialized = true;
-    ESP_LOGI(TAG, "audio playback ready");
+    ESP_LOGI(TAG, "audio playback ready volume=%d", s_volume);
     return ESP_OK;
+}
+
+esp_err_t audio_playback_set_volume(int volume)
+{
+    if (volume < PLAYBACK_VOLUME_MIN || volume > PLAYBACK_VOLUME_MAX) {
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    nvs_handle_t nvs;
+    esp_err_t err = nvs_open(PLAYBACK_NVS_NAMESPACE, NVS_READWRITE, &nvs);
+    if (err != ESP_OK) {
+        return err;
+    }
+    err = nvs_set_u8(nvs, PLAYBACK_NVS_VOLUME_KEY, (uint8_t)volume);
+    if (err == ESP_OK) {
+        err = nvs_commit(nvs);
+    }
+    nvs_close(nvs);
+    if (err == ESP_OK) {
+        s_volume = volume;
+        ESP_LOGI(TAG, "playback volume saved=%d", volume);
+    }
+    return err;
+}
+
+int audio_playback_get_volume(void)
+{
+    return s_volume;
 }
 
 bool audio_playback_is_busy(void)

@@ -132,6 +132,8 @@ final class AgentStickCoordinator {
     private var asr: any ASRClient
     private var translator: LLMTranslationClient
     private let agentRunner = AgentCLIRunner()
+    private let agentApprovalCenter: AgentApprovalCenter
+    private let agentTaskHistoryController: AgentTaskHistoryWindowController
     private let subtitleController = SubtitleController()
     private let oggMuxer = OggOpusMuxer(sampleRate: 16_000, channels: 1)
     private let inputInjector = InputInjector()
@@ -166,16 +168,25 @@ final class AgentStickCoordinator {
     var onFirmwareUpdatePrompt: ((String, String, String, Bool) -> Void)?
 
     init(config: AppConfig, statusController: StatusController) {
+        let agentApprovalCenter = AgentApprovalCenter()
+        self.agentApprovalCenter = agentApprovalCenter
+        self.agentTaskHistoryController = AgentTaskHistoryWindowController(approvalCenter: agentApprovalCenter)
         self.config = config
         self.statusController = statusController
         self.pairedDeviceIDs = config.pairedDeviceIDs
-        self.ble = BleCentral(pairedDeviceIDs: config.pairedDeviceIDs)
+        self.ble = BleCentral(
+            pairedDeviceIDs: config.pairedDeviceIDs,
+            soundVolume: config.deviceSoundVolume
+        )
         self.asr = ASRWebSocketClient(config: config)
         self.translator = LLMTranslationClient(config: config)
         self.debugAudioRecorder = DebugAudioRecorder(
             enabled: config.debugAudioCache,
             directory: config.debugAudioDirectory
         )
+        self.agentTaskHistoryController.onClearSessionHistory = { [weak self] in
+            self?.agentRunner.clearSessionHistory()
+        }
     }
 
     func start() {
@@ -238,6 +249,7 @@ final class AgentStickCoordinator {
 
         self.config = config
         ble.sendInteractionMode(config.interactionMode)
+        ble.sendSoundVolume(config.deviceSoundVolume)
         debugAudioRecorder = DebugAudioRecorder(
             enabled: config.debugAudioCache,
             directory: config.debugAudioDirectory
@@ -374,20 +386,58 @@ final class AgentStickCoordinator {
         case .running:
             ble.sendUIState("thinking", text: "\(snapshot.agent.deviceDisplayName) running")
         case .completed:
-            ble.sendUIState("ready", text: "\(snapshot.agent.deviceDisplayName) done")
+            agentApprovalCenter.finishContinuingRequests()
             playAgentSoundIfEnabled("task_done")
+            ble.sendUIState("ready", text: "\(snapshot.agent.deviceDisplayName) done")
         case .failed:
-            ble.sendUIState("error", text: "\(snapshot.agent.deviceDisplayName) failed")
+            agentApprovalCenter.finishContinuingRequests()
             playAgentSoundIfEnabled("task_failed")
+            ble.sendUIState("error", text: "\(snapshot.agent.deviceDisplayName) failed")
         case .waitingForApproval, .needsInput:
-            ble.sendUIState("pending_confirmation", text: "\(snapshot.agent.deviceDisplayName) needs you")
             playAgentSoundIfEnabled("needs_input")
+            ble.sendUIState("pending_confirmation", text: "\(snapshot.agent.deviceDisplayName) needs you")
         }
     }
 
-    private func playAgentSoundIfEnabled(_ sound: String) {
+    private func playAgentSoundIfEnabled(_ sound: String, to peripheralID: UUID? = nil) {
         guard config.agentSoundAlertsEnabled else { return }
-        ble.playSound(sound)
+        ble.playSound(sound, to: peripheralID)
+    }
+
+    func showAgentTaskHistory() {
+        agentTaskHistoryController.show()
+    }
+
+    func requestAgentApproval(agent: String, kind: String, details: String, reply: @escaping (Bool) -> Void) {
+        playAgentSoundIfEnabled("needs_input")
+        ble.sendUIState("pending_confirmation", text: "\(agent) needs approval")
+        agentApprovalCenter.submit(
+            agent: agent,
+            kind: kind,
+            summary: currentLanguage == .chinese ? "\(agent) 请求执行 \(kind)" : "\(agent) requests \(kind)",
+            details: details
+        ) { [weak self] allowed in
+            reply(allowed)
+            self?.ble.sendUIState("thinking", text: allowed ? "Approval allowed" : "Approval denied")
+        }
+    }
+
+    func testDeviceSound(deviceID: String) {
+        if ble.playSound("task_done", for: deviceID) {
+            statusController.setStatus(currentLanguage == .chinese ? "已发送设备提示音" : "Device sound sent")
+        } else {
+            statusController.setStatus(currentLanguage == .chinese ? "设备未连接" : "Device not connected")
+        }
+    }
+
+    @discardableResult
+    func testDeviceSound(volume: Int) -> Bool {
+        guard ble.hasConnectedDevice else { return false }
+        ble.sendSoundVolume(volume)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.12) { [weak self] in
+            self?.ble.playSound("task_done")
+        }
+        return true
     }
 
     func checkFirmwareUpdatesNow() {
@@ -970,7 +1020,7 @@ final class AgentStickCoordinator {
                 guard let self else { return }
                 switch result {
                 case .success(let translatedText):
-                    self.enterPendingConfirmation(text: translatedText)
+                    self.completeFocusedAppPaste(text: translatedText)
                 case .failure(let error):
                     self.finishWithASRError(error.localizedDescription)
                 }
@@ -978,7 +1028,29 @@ final class AgentStickCoordinator {
             return
         }
 
-        enterPendingConfirmation(text: text)
+        completeFocusedAppPaste(text: text)
+    }
+
+    private func completeFocusedAppPaste(text: String) {
+        pastedFinalText = true
+        lastRecoverableText = text
+        lastRecoverablePeripheralID = activePeripheralID
+        statusController.setHasRecoverableInput(true)
+        pendingPasteState = .idle
+        finishRecognitionCycle()
+        statusController.hideOverlay()
+        sendUIStateForActiveDevice("ready", text: outputModeHint)
+        mainInputState = .ready
+        if inputInjector.paste(text: text, pressEnter: config.autoEnter) {
+            statusController.setStatus(L10n.ready)
+        } else {
+            statusController.setStatus(
+                currentLanguage == .chinese
+                    ? "请在系统设置中允许 AgentStick 辅助功能权限"
+                    : "Allow AgentStick in Accessibility settings"
+            )
+            sendUIStateForActiveDevice("error", text: currentLanguage == .chinese ? "需要辅助功能权限" : "Accessibility required")
+        }
     }
 
     private func enterPendingConfirmation(text: String) {
@@ -1266,7 +1338,13 @@ final class AgentStickCoordinator {
         statusController.setStatus(L10n.ready)
         sendUIStateForActiveDevice("ready", text: outputModeHint)
         mainInputState = .ready
-        inputInjector.paste(text: text, pressEnter: shouldPressEnter)
+        if !inputInjector.paste(text: text, pressEnter: shouldPressEnter) {
+            statusController.setStatus(
+                currentLanguage == .chinese
+                    ? "请在系统设置中允许 AgentStick 辅助功能权限"
+                    : "Allow AgentStick in Accessibility settings"
+            )
+        }
     }
 
     private func completePendingAgentRun(text: String) {
@@ -1292,12 +1370,62 @@ final class AgentStickCoordinator {
     }
 
     private func runAgentCLI(text: String, peripheralID: UUID?) {
-        agentRunner.run(prompt: text, config: config.agentConfig) { [weak self] result in
+        agentRunner.run(
+            prompt: text,
+            config: config.agentConfig,
+            bypassApprovals: config.agentBypassApprovals,
+            memoryEnabled: config.agentMemoryEnabled,
+            approvalHandler: { [weak self] agent, kind, summary, details, reply in
+                guard let self else { reply(false); return }
+                self.playAgentSoundIfEnabled("needs_input", to: peripheralID)
+                if let peripheralID {
+                    self.ble.sendUIState("pending_confirmation", text: "\(agent) needs approval", to: peripheralID)
+                }
+                self.agentApprovalCenter.submit(agent: agent, kind: kind, summary: summary, details: details) { [weak self] allowed in
+                    reply(allowed)
+                    if let peripheralID {
+                        self?.ble.sendUIState("thinking", text: allowed ? "Approval allowed" : "Approval denied", to: peripheralID)
+                    }
+                }
+            },
+            inputHandler: { [weak self] agent, summary, details, questions, reply in
+                guard let self else { reply(nil); return }
+                self.playAgentSoundIfEnabled("needs_input", to: peripheralID)
+                if let peripheralID {
+                    self.ble.sendUIState("pending_confirmation", text: "\(agent) needs input", to: peripheralID)
+                }
+                self.agentApprovalCenter.submitInput(
+                    agent: agent,
+                    summary: summary,
+                    details: details,
+                    questions: questions
+                ) { [weak self] answers in
+                    reply(answers)
+                    if let peripheralID {
+                        self?.ble.sendUIState("thinking", text: answers == nil ? "Input cancelled" : "Answer received", to: peripheralID)
+                    }
+                }
+            }
+        ) { [weak self] result in
             guard let self else { return }
+            self.agentApprovalCenter.finishContinuingRequests()
             switch result {
             case .success(let agentResult):
+                if let peripheralID {
+                    if agentResult.succeeded {
+                        self.playAgentSoundIfEnabled("task_done", to: peripheralID)
+                        self.ble.sendUIState("ready", text: "\(agentResult.task.agentName.capitalized) done", to: peripheralID)
+                    } else {
+                        self.playAgentSoundIfEnabled("task_failed", to: peripheralID)
+                        self.ble.sendUIState("error", text: "\(agentResult.task.agentName.capitalized) failed", to: peripheralID)
+                    }
+                }
                 self.presentAgentResult(agentResult)
             case .failure(let error):
+                if let peripheralID {
+                    self.playAgentSoundIfEnabled("task_failed", to: peripheralID)
+                    self.ble.sendUIState("error", text: "Agent failed", to: peripheralID)
+                }
                 self.presentAgentError(error, prompt: text)
             }
             self.statusController.setStatus(L10n.ready)
@@ -1617,13 +1745,7 @@ final class AgentStickCoordinator {
     }
 
     private func presentAgentResult(_ result: AgentCLIResult) {
-        let title = result.succeeded
-            ? "\(result.task.agentName.capitalized) \(currentLanguage == .chinese ? "完成" : "Done")"
-            : "\(result.task.agentName.capitalized) \(currentLanguage == .chinese ? "失败" : "Failed")"
-        let body = result.displayText.isEmpty
-            ? (currentLanguage == .chinese ? "Agent 没有输出内容。" : "The agent did not return any output.")
-            : result.displayText
-        presentAgentAlert(title: title, prompt: result.task.prompt, body: body, resultURL: result.resultURL)
+        agentTaskHistoryController.show(selecting: result.resultURL)
     }
 
     private func presentAgentError(_ error: Error, prompt: String) {

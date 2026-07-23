@@ -1,5 +1,5 @@
 #!/bin/bash
-# Build AgentStick for macOS as a universal app bundle.
+# Build AgentStick for macOS as a universal or single-architecture app bundle.
 #
 # Produces:
 #   build/AgentStick-<version>.app
@@ -11,6 +11,7 @@
 #   SPARKLE_PUBLIC_ED_KEY=<public key from Sparkle generate_keys>
 #   SPARKLE_PRIVATE_ED_KEY=<private key exported by Sparkle generate_keys -x>
 #   SPARKLE_KEY_ACCOUNT=agentstick
+#   AGENTSTICK_TARGET_ARCHS="arm64"  (defaults to "arm64 x86_64")
 
 set -euo pipefail
 
@@ -21,7 +22,7 @@ BUILD_DIR="$ROOT_DIR/build"
 PLIST="$DESKTOP_DIR/Sources/AgentStickApp/Info.plist"
 VERSION="$(tr -d '[:space:]' < "$ROOT_DIR/VERSION")"
 CONFIG="${1:---release}"
-TARGET_ARCHS="arm64 x86_64"
+TARGET_ARCHS="${AGENTSTICK_TARGET_ARCHS:-arm64 x86_64}"
 SPARKLE_KEY_ACCOUNT="${SPARKLE_KEY_ACCOUNT:-agentstick}"
 
 case "$CONFIG" in
@@ -46,7 +47,7 @@ mkdir -p "$BUILD_DIR"
 
 echo "===================================="
 echo " AgentStick macOS Build v$VERSION"
-echo " Universal Binary: $TARGET_ARCHS"
+echo " Target architectures: $TARGET_ARCHS"
 echo "===================================="
 
 /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString $VERSION" "$PLIST"
@@ -77,17 +78,32 @@ done
 
 APP_DIR="$BUILD_DIR/AgentStick-${VERSION}.app"
 rm -rf "$APP_DIR"
-mkdir -p "$APP_DIR/Contents/MacOS" "$APP_DIR/Contents/Resources" "$APP_DIR/Contents/Frameworks"
-
-ARM_BUILD="$DESKTOP_DIR/.build-arm64/arm64-apple-macosx/$SWIFT_CONFIG"
-X86_BUILD="$DESKTOP_DIR/.build-x86_64/x86_64-apple-macosx/$SWIFT_CONFIG"
+mkdir -p "$APP_DIR/Contents/MacOS" "$APP_DIR/Contents/Helpers" "$APP_DIR/Contents/Resources" "$APP_DIR/Contents/Frameworks"
 
 echo ""
-echo "Creating universal executable..."
-lipo -create \
-    "$ARM_BUILD/AgentStickApp" \
-    "$X86_BUILD/AgentStickApp" \
-    -output "$APP_DIR/Contents/MacOS/AgentStickApp"
+ARCH_BINARIES=()
+for ARCH in $TARGET_ARCHS; do
+    ARCH_BINARIES+=("$DESKTOP_DIR/.build-$ARCH/$ARCH-apple-macosx/$SWIFT_CONFIG/AgentStickApp")
+done
+if [ "${#ARCH_BINARIES[@]}" -eq 1 ]; then
+    echo "Copying $TARGET_ARCHS executable..."
+    cp "${ARCH_BINARIES[0]}" "$APP_DIR/Contents/MacOS/AgentStickApp"
+else
+    echo "Creating universal executable..."
+    lipo -create "${ARCH_BINARIES[@]}" -output "$APP_DIR/Contents/MacOS/AgentStickApp"
+fi
+
+echo "Bundling Agent approval hook helper..."
+HOOK_BINARIES=()
+for ARCH in $TARGET_ARCHS; do
+    HOOK_BINARIES+=("$DESKTOP_DIR/.build-$ARCH/$ARCH-apple-macosx/$SWIFT_CONFIG/AgentStickHooks")
+done
+if [ "${#HOOK_BINARIES[@]}" -eq 1 ]; then
+    cp "${HOOK_BINARIES[0]}" "$APP_DIR/Contents/Helpers/AgentStickHooks"
+else
+    lipo -create "${HOOK_BINARIES[@]}" -output "$APP_DIR/Contents/Helpers/AgentStickHooks"
+fi
+chmod +x "$APP_DIR/Contents/Helpers/AgentStickHooks"
 
 cp "$PLIST" "$APP_DIR/Contents/Info.plist"
 
@@ -98,12 +114,20 @@ else
     echo "WARNING: App icon was not found: $ICON_PATH"
 fi
 
-SPARKLE_FRAMEWORK="$(find -L "$DESKTOP_DIR/.build-arm64/artifacts" -name Sparkle.framework -type d 2>/dev/null | head -1 || true)"
+FIRST_ARCH="${TARGET_ARCHS%% *}"
+SPARKLE_FRAMEWORK="$(find -L "$DESKTOP_DIR/.build-$FIRST_ARCH/artifacts" -name Sparkle.framework -type d 2>/dev/null | head -1 || true)"
 if [ -n "$SPARKLE_FRAMEWORK" ]; then
     cp -R "$SPARKLE_FRAMEWORK" "$APP_DIR/Contents/Frameworks/"
-    install_name_tool -add_rpath "@loader_path/../Frameworks" "$APP_DIR/Contents/MacOS/AgentStickApp" 2>/dev/null || true
+    if ! otool -l "$APP_DIR/Contents/MacOS/AgentStickApp" | grep -Fq '@loader_path/../Frameworks'; then
+        install_name_tool -add_rpath "@loader_path/../Frameworks" "$APP_DIR/Contents/MacOS/AgentStickApp"
+    fi
+    if ! otool -l "$APP_DIR/Contents/MacOS/AgentStickApp" | grep -Fq '@loader_path/../Frameworks'; then
+        echo "Error: failed to add the bundled Frameworks runtime search path."
+        exit 1
+    fi
 else
-    echo "WARNING: Sparkle.framework was not found in SwiftPM artifacts."
+    echo "Error: Sparkle.framework was not found in SwiftPM artifacts."
+    exit 1
 fi
 
 CODESIGN_IDENTITY="-"
@@ -137,7 +161,7 @@ echo "Creating Sparkle ZIP..."
 ditto -c -k --norsrc --noextattr --keepParent "$STAGING_DIR/AgentStick.app" "$ZIP_PATH"
 rm -rf "$STAGING_DIR"
 
-SIGN_TOOL="$(find -L "$DESKTOP_DIR/.build-arm64/artifacts" -name sign_update -type f 2>/dev/null | head -1 || true)"
+SIGN_TOOL="$(find -L "$DESKTOP_DIR/.build-$FIRST_ARCH/artifacts" -name sign_update -type f 2>/dev/null | head -1 || true)"
 if [ -n "$SIGN_TOOL" ] && [ -x "$SIGN_TOOL" ]; then
     echo "Signing Sparkle ZIP..."
     if [ -n "${SPARKLE_PRIVATE_ED_KEY:-}" ]; then

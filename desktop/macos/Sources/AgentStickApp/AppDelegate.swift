@@ -82,6 +82,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 self?.statusController?.setDeviceOutputProfiles(config.deviceOutputProfiles)
                 self?.coordinator?.updateConfig(config)
             }
+            controller.onTestDeviceSoundVolume = { [weak self] volume in
+                self?.coordinator?.testDeviceSound(volume: volume) ?? false
+            }
             self?.showDockIconWhileWindowVisible(controller)
             controller.show()
         }
@@ -117,6 +120,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         statusController.onSetDeviceOutputProfile = { [weak self] deviceID, profile in
             self?.updateDeviceOutputProfile(deviceID: deviceID, profile: profile)
         }
+        statusController.onOpenTaskHistory = { [weak coordinator] in
+            coordinator?.showAgentTaskHistory()
+        }
+        statusController.onTestDeviceSound = { [weak coordinator] deviceID in
+            coordinator?.testDeviceSound(deviceID: deviceID)
+        }
         statusController.onSetDeviceThemeColor = { [weak self] deviceID, color in
             self?.updateDeviceThemeColor(deviceID: deviceID, color: color)
         }
@@ -130,9 +139,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 userDriverDelegate: nil
             )
             self.updaterController = updaterController
-            statusController.onCheckForUpdates = {
-                updaterController.updater.checkForUpdates()
-            }
         }
         statusController.setStatus(config.pairedDeviceIDs.isEmpty ? L10n.pairAgentStick : "Ready")
         coordinator.start()
@@ -140,10 +146,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         taskCaptureController.onSnapshot = { [weak coordinator] snapshot in
             coordinator?.handleAgentTaskSnapshot(snapshot)
         }
-        if config.agentCaptureEnabled {
-            taskCaptureController.start()
-            self.taskCaptureController = taskCaptureController
+        taskCaptureController.onApprovalRequest = { [weak coordinator] agent, kind, details, reply in
+            guard let coordinator else { reply(false); return }
+            coordinator.requestAgentApproval(agent: agent, kind: kind, details: details, reply: reply)
         }
+        taskCaptureController.start(captureEnabled: config.agentCaptureEnabled)
+        self.taskCaptureController = taskCaptureController
     }
 
     private func updateInputOptions(interactionMode: InteractionMode?, autoEnter: Bool?) {
@@ -178,6 +186,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             try config.save()
             self.config = config
             statusController?.setDeviceThemeColors(config.deviceThemeColors)
+            coordinator?.updateConfig(config)
         } catch {
             statusController?.setStatus(L10n.themeSaveFailed)
         }

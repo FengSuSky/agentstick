@@ -2,8 +2,14 @@ import AppKit
 import Foundation
 
 final class InputInjector {
-    func paste(text: String, pressEnter: Bool) {
-        guard !text.isEmpty else { return }
+    @discardableResult
+    func paste(text: String, pressEnter: Bool) -> Bool {
+        guard !text.isEmpty else { return false }
+        let trustOptions = [kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true] as CFDictionary
+        guard AXIsProcessTrustedWithOptions(trustOptions) else {
+            NSLog("InputInjector blocked: Accessibility permission is not granted")
+            return false
+        }
 
         let pasteboard = NSPasteboard.general
         let previousItems = pasteboard.pasteboardItems?.map(PasteboardItemSnapshot.init)
@@ -30,6 +36,7 @@ final class InputInjector {
                 pasteboard.writeObjects(restoredItems)
             }
         }
+        return true
     }
 
     private func sendCommandV() {
