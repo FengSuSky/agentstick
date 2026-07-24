@@ -404,25 +404,34 @@ private final class RecognitionIndicatorView: NSView {
         wantsLayer = true
         layer?.masksToBounds = false
         ringLayer.fillColor = NSColor.clear.cgColor
-        ringLayer.strokeColor = NSColor.black.withAlphaComponent(0.34).cgColor
         ringLayer.lineCap = .round
         ringLayer.lineWidth = 3
         ringLayer.isHidden = true
         layer?.addSublayer(ringLayer)
         for xLayer in xLayers {
-            xLayer.strokeColor = NSColor.black.withAlphaComponent(0.34).cgColor
             xLayer.lineCap = .round
             xLayer.lineWidth = 3
             xLayer.isHidden = true
             layer?.addSublayer(xLayer)
         }
         for bar in barLayers {
-            bar.backgroundColor = NSColor.black.withAlphaComponent(0.34).cgColor
             bar.cornerRadius = 2
             layer?.addSublayer(bar)
         }
+        setTintColor(NSColor.black.withAlphaComponent(0.34))
         layoutBars()
         startAnimating()
+    }
+
+    func setTintColor(_ color: NSColor) {
+        let cgColor = color.cgColor
+        ringLayer.strokeColor = cgColor
+        for xLayer in xLayers {
+            xLayer.strokeColor = cgColor
+        }
+        for bar in barLayers {
+            bar.backgroundColor = cgColor
+        }
     }
 
     private func layoutBars() {
