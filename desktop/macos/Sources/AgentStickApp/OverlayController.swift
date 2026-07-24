@@ -1,8 +1,18 @@
+import AgentStickCore
 import AppKit
+
+private final class OverlayContainerView: NSView {
+    var onAppearanceChange: (() -> Void)?
+
+    override func viewDidChangeEffectiveAppearance() {
+        super.viewDidChangeEffectiveAppearance()
+        onAppearanceChange?()
+    }
+}
 
 final class OverlayController {
     private let window: NSPanel
-    private let container = NSView()
+    private let container = OverlayContainerView()
     private let indicator = RecognitionIndicatorView()
     private let textLabel = NSTextField(labelWithString: "")
     private let hintLabel = NSTextField(labelWithString: "")
@@ -43,15 +53,14 @@ final class OverlayController {
 
         container.wantsLayer = true
         if let layer = container.layer {
-            layer.backgroundColor = Self.backgroundColor(for: themeColor).cgColor
             layer.cornerRadius = 24
             layer.cornerCurve = .continuous
             layer.masksToBounds = true
             layer.borderWidth = 0
         }
+        container.onAppearanceChange = { [weak self] in self?.applyAppearanceColors() }
 
         textLabel.font = .systemFont(ofSize: 30, weight: .regular)
-        textLabel.textColor = NSColor.black.withAlphaComponent(0.68)
         textLabel.alignment = .center
         textLabel.maximumNumberOfLines = 0
         textLabel.lineBreakMode = .byWordWrapping
@@ -59,7 +68,6 @@ final class OverlayController {
         textLabel.translatesAutoresizingMaskIntoConstraints = false
 
         hintLabel.font = .systemFont(ofSize: 13, weight: .medium)
-        hintLabel.textColor = NSColor.black.withAlphaComponent(0.42)
         hintLabel.alignment = .center
         hintLabel.lineBreakMode = .byClipping
         hintLabel.translatesAutoresizingMaskIntoConstraints = false
@@ -84,12 +92,38 @@ final class OverlayController {
             hintLabel.trailingAnchor.constraint(equalTo: textLabel.trailingAnchor),
             hintLabel.topAnchor.constraint(equalTo: textLabel.bottomAnchor, constant: 8)
         ])
+
+        applyAppearanceColors()
     }
 
     func setThemeColor(_ color: OverlayThemeColor) {
         guard themeColor != color else { return }
         themeColor = color
-        container.layer?.backgroundColor = Self.backgroundColor(for: color).cgColor
+        applyAppearanceColors()
+    }
+
+    private var currentAppearance: OverlayAppearance {
+        container.effectiveAppearance.bestMatch(from: [.aqua, .darkAqua]) == .darkAqua ? .dark : .light
+    }
+
+    private func applyAppearanceColors() {
+        let appearance = currentAppearance
+        let components = OverlayColorScheme.backgroundComponents(for: themeColor.colorSchemeTheme, appearance: appearance)
+        container.layer?.backgroundColor = NSColor(
+            calibratedRed: components.red,
+            green: components.green,
+            blue: components.blue,
+            alpha: components.alpha
+        ).cgColor
+
+        let textBase: NSColor = OverlayColorScheme.isLightText(for: appearance) ? .white : .black
+        textLabel.textColor = textBase.withAlphaComponent(CGFloat(OverlayColorScheme.textAlpha(for: appearance)))
+        hintLabel.textColor = textBase.withAlphaComponent(CGFloat(OverlayColorScheme.hintAlpha(for: appearance)))
+        indicator.setTintColor(textBase.withAlphaComponent(CGFloat(OverlayColorScheme.indicatorAlpha(for: appearance))))
+
+        if window.isVisible {
+            applyText(textLabel.stringValue, shouldWrap: textLabel.maximumNumberOfLines != 1)
+        }
     }
 
     func setPosition(_ position: OverlayPosition) {
@@ -341,22 +375,6 @@ final class OverlayController {
         return max(0, ceil(naturalLineHeight * textLineHeightMultiple) - naturalLineHeight)
     }
 
-    private static func backgroundColor(for color: OverlayThemeColor) -> NSColor {
-        switch color {
-        case .white:
-            return NSColor.white.withAlphaComponent(0.86)
-        case .pink:
-            return NSColor(calibratedRed: 1.0, green: 0.84, blue: 0.9, alpha: 0.86)
-        case .green:
-            return NSColor(calibratedRed: 0.84, green: 0.95, blue: 0.84, alpha: 0.86)
-        case .yellow:
-            return NSColor(calibratedRed: 1.0, green: 0.94, blue: 0.72, alpha: 0.86)
-        case .blue:
-            return NSColor(calibratedRed: 0.82, green: 0.91, blue: 1.0, alpha: 0.86)
-        case .purple:
-            return NSColor(calibratedRed: 0.9, green: 0.84, blue: 1.0, alpha: 0.86)
-        }
-    }
 }
 
 private final class RecognitionIndicatorView: NSView {
