@@ -2,7 +2,7 @@ import AppKit
 import AgentStickCore
 import Foundation
 
-final class AgentTaskHistoryWindowController: NSWindowController, NSTableViewDataSource, NSTableViewDelegate {
+final class AgentTaskHistoryWindowController: NSWindowController, NSOutlineViewDataSource, NSOutlineViewDelegate {
     var onClearSessionHistory: (() -> Void)?
     private struct TaskEntry {
         let url: URL
@@ -21,10 +21,33 @@ final class AgentTaskHistoryWindowController: NSWindowController, NSTableViewDat
         case task(TaskEntry)
     }
 
-    private let tableView = NSTableView()
+    private enum SectionKind {
+        case pending
+        case history
+
+        var title: String {
+            switch self {
+            case .pending: return currentLanguage == .chinese ? "待处理" : "Pending"
+            case .history: return currentLanguage == .chinese ? "历史记录" : "History"
+            }
+        }
+    }
+
+    private final class HistorySectionItem {
+        let kind: SectionKind
+        init(kind: SectionKind) { self.kind = kind }
+    }
+
+    private final class HistoryEntryItem {
+        let entry: HistoryEntry
+        init(entry: HistoryEntry) { self.entry = entry }
+    }
+
+    private let outlineView = NSOutlineView()
     private let detailTextView = NSTextView()
     private let titleLabel = NSTextField(labelWithString: "")
     private let metadataLabel = NSTextField(labelWithString: "")
+    private let moreButton = NSPopUpButton()
     private let openButton = NSButton()
     private let revealButton = NSButton()
     private let allowButton = NSButton()
@@ -33,7 +56,20 @@ final class AgentTaskHistoryWindowController: NSWindowController, NSTableViewDat
     private let cancelInputButton = NSButton()
     private let deleteButton = NSButton()
     private let approvalCenter: AgentApprovalCenter
-    private var entries: [HistoryEntry] = []
+    private let pendingSectionItem = HistorySectionItem(kind: .pending)
+    private let historySectionItem = HistorySectionItem(kind: .history)
+    private var pendingItems: [HistoryEntryItem] = []
+    private var historyItems: [HistoryEntryItem] = []
+
+    private var visibleSections: [HistorySectionItem] {
+        pendingItems.isEmpty ? [historySectionItem] : [pendingSectionItem, historySectionItem]
+    }
+
+    private var selectedEntry: HistoryEntry? {
+        guard outlineView.selectedRow >= 0,
+              let item = outlineView.item(atRow: outlineView.selectedRow) as? HistoryEntryItem else { return nil }
+        return item.entry
+    }
 
     init(approvalCenter: AgentApprovalCenter) {
         self.approvalCenter = approvalCenter
@@ -106,14 +142,16 @@ final class AgentTaskHistoryWindowController: NSWindowController, NSTableViewDat
 
         let column = NSTableColumn(identifier: NSUserInterfaceItemIdentifier("task"))
         column.title = currentLanguage == .chinese ? "任务" : "Tasks"
-        tableView.addTableColumn(column)
-        tableView.headerView = nil
-        tableView.rowHeight = 58
-        tableView.intercellSpacing = NSSize(width: 0, height: 4)
-        tableView.selectionHighlightStyle = .regular
-        tableView.dataSource = self
-        tableView.delegate = self
-        tableScrollView.documentView = tableView
+        outlineView.addTableColumn(column)
+        outlineView.outlineTableColumn = column
+        outlineView.headerView = nil
+        outlineView.indentationPerLevel = 0
+        outlineView.rowHeight = 58
+        outlineView.intercellSpacing = NSSize(width: 0, height: 4)
+        outlineView.selectionHighlightStyle = .regular
+        outlineView.dataSource = self
+        outlineView.delegate = self
+        tableScrollView.documentView = outlineView
 
         NSLayoutConstraint.activate([
             tableScrollView.leadingAnchor.constraint(equalTo: sidebar.leadingAnchor),
@@ -255,32 +293,72 @@ final class AgentTaskHistoryWindowController: NSWindowController, NSTableViewDat
             includingPropertiesForKeys: [.contentModificationDateKey],
             options: [.skipsHiddenFiles]
         )) ?? []
-        let taskEntries = urls
+        let taskEntries: [HistoryEntry] = urls
             .filter { $0.pathExtension.lowercased() == "md" }
             .compactMap(loadEntry)
-            .sorted { $0.date > $1.date }
-        let interactions: [HistoryEntry] = (
+            .map(HistoryEntry.task)
+        let interactionEntries: [HistoryEntry] =
             approvalCenter.requests.map(HistoryEntry.approval) +
             approvalCenter.inputRequests.map(HistoryEntry.input)
-        ).sorted { interactionDate($0) > interactionDate($1) }
-        entries = interactions + taskEntries.map(HistoryEntry.task)
-        tableView.reloadData()
+        let grouped = groupedSections(from: interactionEntries + taskEntries)
+        pendingItems = grouped.pending.map(HistoryEntryItem.init)
+        historyItems = grouped.history.map(HistoryEntryItem.init)
+        outlineView.reloadData()
+        outlineView.expandItem(pendingSectionItem)
+        outlineView.expandItem(historySectionItem)
 
         let targetPath = resultURL?.standardizedFileURL.path
-        let selectedIndex = inputID.flatMap { id in
-            entries.firstIndex { if case .input(let value) = $0 { return value.id == id }; return false }
-        } ?? approvalID.flatMap { id in
-            entries.firstIndex { if case .approval(let value) = $0 { return value.id == id }; return false }
-        } ?? targetPath.flatMap { path in
-            entries.firstIndex { if case .task(let value) = $0 { return value.url.standardizedFileURL.path == path }; return false }
-        } ?? (entries.isEmpty ? nil : 0)
-        if let selectedIndex {
-            tableView.selectRowIndexes(IndexSet(integer: selectedIndex), byExtendingSelection: false)
-            tableView.scrollRowToVisible(selectedIndex)
-            display(entries[selectedIndex])
+        let allEntries = (pendingItems + historyItems).map(\.entry)
+        let targetEntry: HistoryEntry? = allEntries.first { entry in
+            if let inputID { if case .input(let value) = entry { return value.id == inputID } }
+            if let approvalID { if case .approval(let value) = entry { return value.id == approvalID } }
+            if let targetPath { if case .task(let value) = entry { return value.url.standardizedFileURL.path == targetPath } }
+            return false
+        }
+        let fallback = (inputID == nil && approvalID == nil && targetPath == nil) ? allEntries.first : nil
+        if let entry = targetEntry ?? fallback, let item = outlineItem(for: entry) {
+            let row = outlineView.row(forItem: item)
+            if row >= 0 {
+                outlineView.selectRowIndexes(IndexSet(integer: row), byExtendingSelection: false)
+                outlineView.scrollRowToVisible(row)
+            }
+            display(entry)
         } else {
             displayEmptyState()
         }
+    }
+
+    private func groupedSections(from all: [HistoryEntry]) -> (pending: [HistoryEntry], history: [HistoryEntry]) {
+        let items = all.map {
+            HistoryGroupingItem(id: historyEntryID($0), isPending: isPendingEntry($0), date: interactionDate($0))
+        }
+        let grouped = HistoryEntryGrouping.group(items)
+        let byID = Dictionary(uniqueKeysWithValues: all.map { (historyEntryID($0), $0) })
+        return (
+            grouped.pending.compactMap { byID[$0.id] },
+            grouped.history.compactMap { byID[$0.id] }
+        )
+    }
+
+    private func historyEntryID(_ entry: HistoryEntry) -> String {
+        switch entry {
+        case .task(let task): return "task:\(task.url.standardizedFileURL.path)"
+        case .approval(let request): return "approval:\(request.id.uuidString)"
+        case .input(let request): return "input:\(request.id.uuidString)"
+        }
+    }
+
+    private func isPendingEntry(_ entry: HistoryEntry) -> Bool {
+        switch entry {
+        case .task: return false
+        case .approval(let request): return request.state == .pending
+        case .input(let request): return request.state == .pending
+        }
+    }
+
+    private func outlineItem(for entry: HistoryEntry) -> HistoryEntryItem? {
+        let id = historyEntryID(entry)
+        return (pendingItems + historyItems).first { historyEntryID($0.entry) == id }
     }
 
     private func interactionDate(_ entry: HistoryEntry) -> Date {
@@ -431,13 +509,60 @@ final class AgentTaskHistoryWindowController: NSWindowController, NSTableViewDat
         deleteButton.isHidden = true
     }
 
-    func numberOfRows(in tableView: NSTableView) -> Int {
-        entries.count
+    func outlineView(_ outlineView: NSOutlineView, numberOfChildrenOfItem item: Any?) -> Int {
+        if item == nil { return visibleSections.count }
+        guard let section = item as? HistorySectionItem else { return 0 }
+        return section === pendingSectionItem ? pendingItems.count : historyItems.count
     }
 
-    func tableView(_ tableView: NSTableView, viewFor tableColumn: NSTableColumn?, row: Int) -> NSView? {
+    func outlineView(_ outlineView: NSOutlineView, child index: Int, ofItem item: Any?) -> Any {
+        if item == nil { return visibleSections[index] }
+        guard let section = item as? HistorySectionItem else {
+            fatalError("Unexpected outline item without a parent section")
+        }
+        return section === pendingSectionItem ? pendingItems[index] : historyItems[index]
+    }
+
+    func outlineView(_ outlineView: NSOutlineView, isItemExpandable item: Any) -> Bool {
+        item is HistorySectionItem
+    }
+
+    func outlineView(_ outlineView: NSOutlineView, isGroupItem item: Any) -> Bool {
+        item is HistorySectionItem
+    }
+
+    func outlineView(_ outlineView: NSOutlineView, shouldSelectItem item: Any) -> Bool {
+        item is HistoryEntryItem
+    }
+
+    func outlineView(_ outlineView: NSOutlineView, heightOfRowByItem item: Any) -> CGFloat {
+        item is HistorySectionItem ? 22 : 58
+    }
+
+    func outlineView(_ outlineView: NSOutlineView, viewFor tableColumn: NSTableColumn?, item: Any) -> NSView? {
+        if let section = item as? HistorySectionItem {
+            let identifier = NSUserInterfaceItemIdentifier("HistorySectionHeader")
+            let cell = (outlineView.makeView(withIdentifier: identifier, owner: self) as? NSTableCellView) ?? {
+                let value = NSTableCellView()
+                value.identifier = identifier
+                let label = NSTextField(labelWithString: "")
+                label.font = .systemFont(ofSize: 11, weight: .bold)
+                label.textColor = .secondaryLabelColor
+                label.translatesAutoresizingMaskIntoConstraints = false
+                value.textField = label
+                value.addSubview(label)
+                NSLayoutConstraint.activate([
+                    label.leadingAnchor.constraint(equalTo: value.leadingAnchor, constant: 12),
+                    label.centerYAnchor.constraint(equalTo: value.centerYAnchor)
+                ])
+                return value
+            }()
+            cell.textField?.stringValue = section.kind.title.uppercased()
+            return cell
+        }
+        guard let entryItem = item as? HistoryEntryItem else { return nil }
         let identifier = NSUserInterfaceItemIdentifier("TaskHistoryCell")
-        let cell = (tableView.makeView(withIdentifier: identifier, owner: self) as? NSTableCellView) ?? {
+        let cell = (outlineView.makeView(withIdentifier: identifier, owner: self) as? NSTableCellView) ?? {
             let value = NSTableCellView()
             value.identifier = identifier
             let label = NSTextField(wrappingLabelWithString: "")
@@ -453,7 +578,7 @@ final class AgentTaskHistoryWindowController: NSWindowController, NSTableViewDat
             ])
             return value
         }()
-        switch entries[row] {
+        switch entryItem.entry {
         case .task(let entry):
             let symbol = entry.succeeded ? "✓" : "!"
             cell.textField?.stringValue = "\(symbol) \(entry.agent.capitalized)\n\(entry.prompt)"
@@ -470,27 +595,23 @@ final class AgentTaskHistoryWindowController: NSWindowController, NSTableViewDat
         return cell
     }
 
-    func tableViewSelectionDidChange(_ notification: Notification) {
-        let row = tableView.selectedRow
-        guard entries.indices.contains(row) else { return }
-        display(entries[row])
+    func outlineViewSelectionDidChange(_ notification: Notification) {
+        guard let entry = selectedEntry else { return }
+        display(entry)
     }
 
     @objc private func refresh() {
-        let selectedURL: URL? = entries.indices.contains(tableView.selectedRow) ? {
-            if case .task(let entry) = entries[tableView.selectedRow] { return entry.url }
-            return nil
-        }() : nil
+        let selectedURL: URL? = { if case .task(let entry) = selectedEntry { return entry.url }; return nil }()
         reloadEntries(selecting: selectedURL)
     }
 
     @objc private func openSelectedTask() {
-        guard entries.indices.contains(tableView.selectedRow), case .task(let entry) = entries[tableView.selectedRow] else { return }
+        guard case .task(let entry) = selectedEntry else { return }
         NSWorkspace.shared.open(entry.url)
     }
 
     @objc private func revealSelectedTask() {
-        guard entries.indices.contains(tableView.selectedRow), case .task(let entry) = entries[tableView.selectedRow] else { return }
+        guard case .task(let entry) = selectedEntry else { return }
         NSWorkspace.shared.activateFileViewerSelecting([entry.url])
     }
 
@@ -498,14 +619,13 @@ final class AgentTaskHistoryWindowController: NSWindowController, NSTableViewDat
     @objc private func denySelectedRequest() { resolveSelectedRequest(allowed: false) }
 
     private func resolveSelectedRequest(allowed: Bool) {
-        guard entries.indices.contains(tableView.selectedRow), case .approval(let request) = entries[tableView.selectedRow] else { return }
+        guard case .approval(let request) = selectedEntry else { return }
         approvalCenter.resolve(request, allowed: allowed)
-        display(request)
-        tableView.reloadData(forRowIndexes: IndexSet(integer: tableView.selectedRow), columnIndexes: IndexSet(integer: 0))
+        reloadEntries(selecting: nil, approvalID: request.id)
     }
 
     @objc private func deleteSelectedEntry() {
-        guard entries.indices.contains(tableView.selectedRow) else { return }
+        guard let entry = selectedEntry else { return }
         let alert = NSAlert()
         alert.alertStyle = .warning
         alert.messageText = currentLanguage == .chinese ? "删除这条记录？" : "Delete this record?"
@@ -515,7 +635,7 @@ final class AgentTaskHistoryWindowController: NSWindowController, NSTableViewDat
         alert.addButton(withTitle: currentLanguage == .chinese ? "删除" : "Delete")
         alert.addButton(withTitle: currentLanguage == .chinese ? "取消" : "Cancel")
         guard alert.runModal() == .alertFirstButtonReturn else { return }
-        switch entries[tableView.selectedRow] {
+        switch entry {
         case .task(let task):
             NSWorkspace.shared.recycle([task.url]) { [weak self] _, _ in
                 DispatchQueue.main.async { self?.reloadEntries(selecting: nil) }
@@ -557,14 +677,13 @@ final class AgentTaskHistoryWindowController: NSWindowController, NSTableViewDat
     }
 
     @objc private func cancelSelectedInput() {
-        guard entries.indices.contains(tableView.selectedRow), case .input(let request) = entries[tableView.selectedRow] else { return }
+        guard case .input(let request) = selectedEntry else { return }
         approvalCenter.resolve(request, answers: nil)
-        display(request)
-        tableView.reloadData(forRowIndexes: IndexSet(integer: tableView.selectedRow), columnIndexes: IndexSet(integer: 0))
+        reloadEntries(selecting: nil, inputID: request.id)
     }
 
     @objc private func answerSelectedInput() {
-        guard entries.indices.contains(tableView.selectedRow), case .input(let request) = entries[tableView.selectedRow], request.state == .pending else { return }
+        guard case .input(let request) = selectedEntry, request.state == .pending else { return }
         let form = NSStackView()
         form.orientation = .vertical
         form.alignment = .leading
@@ -643,8 +762,7 @@ final class AgentTaskHistoryWindowController: NSWindowController, NSTableViewDat
             answers[question.id] = value.isEmpty ? [] : [value]
         }
         approvalCenter.resolve(request, answers: answers)
-        display(request)
-        tableView.reloadData(forRowIndexes: IndexSet(integer: tableView.selectedRow), columnIndexes: IndexSet(integer: 0))
+        reloadEntries(selecting: nil, inputID: request.id)
     }
 }
 
