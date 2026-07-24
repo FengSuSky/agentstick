@@ -1,3 +1,4 @@
+import AgentStickCore
 import AppKit
 import Foundation
 import TOMLKit
@@ -53,6 +54,12 @@ enum OverlayThemeColor: String, CaseIterable {
         case .purple:
             return "Purple"
         }
+    }
+}
+
+extension OverlayThemeColor {
+    var colorSchemeTheme: OverlayThemeName {
+        OverlayThemeName(rawValue: rawValue) ?? .white
     }
 }
 
