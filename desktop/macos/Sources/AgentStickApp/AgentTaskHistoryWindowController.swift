@@ -48,8 +48,6 @@ final class AgentTaskHistoryWindowController: NSWindowController, NSOutlineViewD
     private let titleLabel = NSTextField(labelWithString: "")
     private let metadataLabel = NSTextField(labelWithString: "")
     private let moreButton = NSPopUpButton()
-    private let openButton = NSButton()
-    private let revealButton = NSButton()
     private let allowButton = NSButton()
     private let denyButton = NSButton()
     private let answerButton = NSButton()
@@ -212,20 +210,43 @@ final class AgentTaskHistoryWindowController: NSWindowController, NSOutlineViewD
             target: self,
             action: #selector(refresh)
         )
+        refreshButton.bezelStyle = .inline
+        refreshButton.isBordered = false
+
         let clearHistoryButton = NSButton(
             title: currentLanguage == .chinese ? "清空历史" : "Clear History",
             target: self,
             action: #selector(clearHistory)
         )
-        openButton.title = currentLanguage == .chinese ? "打开原始文件" : "Open Original"
-        openButton.target = self
-        openButton.action = #selector(openSelectedTask)
-        revealButton.title = currentLanguage == .chinese ? "在 Finder 中显示" : "Show in Finder"
-        revealButton.target = self
-        revealButton.action = #selector(revealSelectedTask)
+        clearHistoryButton.bezelStyle = .inline
+        clearHistoryButton.isBordered = false
+        clearHistoryButton.contentTintColor = .systemRed
+
+        moreButton.pullsDown = true
+        moreButton.bezelStyle = .inline
+        moreButton.imagePosition = .noImage
+        let moreMenu = NSMenu()
+        moreMenu.addItem(NSMenuItem(title: currentLanguage == .chinese ? "更多" : "More", action: nil, keyEquivalent: ""))
+        let openItem = NSMenuItem(
+            title: currentLanguage == .chinese ? "打开原始文件" : "Open Original",
+            action: #selector(openSelectedTask),
+            keyEquivalent: ""
+        )
+        openItem.target = self
+        moreMenu.addItem(openItem)
+        let revealItem = NSMenuItem(
+            title: currentLanguage == .chinese ? "在 Finder 中显示" : "Show in Finder",
+            action: #selector(revealSelectedTask),
+            keyEquivalent: ""
+        )
+        revealItem.target = self
+        moreMenu.addItem(revealItem)
+        moreButton.menu = moreMenu
+
         allowButton.title = currentLanguage == .chinese ? "允许" : "Allow"
         allowButton.bezelStyle = .rounded
         allowButton.keyEquivalent = "\r"
+        allowButton.contentTintColor = .controlAccentColor
         allowButton.target = self
         allowButton.action = #selector(allowSelectedRequest)
         denyButton.title = currentLanguage == .chinese ? "拒绝" : "Deny"
@@ -235,6 +256,7 @@ final class AgentTaskHistoryWindowController: NSWindowController, NSOutlineViewD
         answerButton.title = currentLanguage == .chinese ? "回答…" : "Answer…"
         answerButton.bezelStyle = .rounded
         answerButton.keyEquivalent = "\r"
+        answerButton.contentTintColor = .controlAccentColor
         answerButton.target = self
         answerButton.action = #selector(answerSelectedInput)
         cancelInputButton.title = currentLanguage == .chinese ? "取消请求" : "Cancel Request"
@@ -242,21 +264,30 @@ final class AgentTaskHistoryWindowController: NSWindowController, NSOutlineViewD
         cancelInputButton.target = self
         cancelInputButton.action = #selector(cancelSelectedInput)
         deleteButton.title = currentLanguage == .chinese ? "删除记录" : "Delete"
-        deleteButton.bezelStyle = .rounded
+        deleteButton.bezelStyle = .inline
+        deleteButton.isBordered = false
+        deleteButton.contentTintColor = .systemRed
         deleteButton.target = self
         deleteButton.action = #selector(deleteSelectedEntry)
+
+        let destructiveGroup = NSStackView(views: [clearHistoryButton, deleteButton])
+        destructiveGroup.orientation = .horizontal
+        destructiveGroup.spacing = 10
+
+        let secondaryGroup = NSStackView(views: [refreshButton, moreButton])
+        secondaryGroup.orientation = .horizontal
+        secondaryGroup.spacing = 10
+
+        let primaryGroup = NSStackView(views: [cancelInputButton, denyButton, allowButton, answerButton])
+        primaryGroup.orientation = .horizontal
+        primaryGroup.spacing = 10
+
         let spacer = NSView()
         spacer.setContentHuggingPriority(.defaultLow, for: .horizontal)
-        footer.addArrangedSubview(refreshButton)
-        footer.addArrangedSubview(clearHistoryButton)
+        footer.addArrangedSubview(destructiveGroup)
+        footer.addArrangedSubview(secondaryGroup)
         footer.addArrangedSubview(spacer)
-        footer.addArrangedSubview(deleteButton)
-        footer.addArrangedSubview(denyButton)
-        footer.addArrangedSubview(allowButton)
-        footer.addArrangedSubview(cancelInputButton)
-        footer.addArrangedSubview(answerButton)
-        footer.addArrangedSubview(revealButton)
-        footer.addArrangedSubview(openButton)
+        footer.addArrangedSubview(primaryGroup)
 
         NSLayoutConstraint.activate([
             titleLabel.leadingAnchor.constraint(equalTo: detail.leadingAnchor, constant: 24),
@@ -430,10 +461,8 @@ final class AgentTaskHistoryWindowController: NSWindowController, NSOutlineViewD
         )
         detailTextView.textStorage?.setAttributedString(MarkdownTextRenderer.render(entry.markdown))
         detailTextView.scrollToBeginningOfDocument(nil)
-        openButton.isEnabled = true
-        revealButton.isEnabled = true
-        openButton.isHidden = false
-        revealButton.isHidden = false
+        moreButton.isHidden = false
+        moreButton.isEnabled = true
         allowButton.isHidden = true
         denyButton.isHidden = true
         answerButton.isHidden = true
@@ -466,8 +495,7 @@ final class AgentTaskHistoryWindowController: NSWindowController, NSOutlineViewD
         denyButton.isHidden = false
         allowButton.isEnabled = pending
         denyButton.isEnabled = pending
-        openButton.isHidden = true
-        revealButton.isHidden = true
+        moreButton.isHidden = true
         answerButton.isHidden = true
         cancelInputButton.isHidden = true
         deleteButton.isHidden = false
@@ -499,8 +527,7 @@ final class AgentTaskHistoryWindowController: NSWindowController, NSOutlineViewD
         cancelInputButton.isEnabled = pending
         allowButton.isHidden = true
         denyButton.isHidden = true
-        openButton.isHidden = true
-        revealButton.isHidden = true
+        moreButton.isHidden = true
         deleteButton.isHidden = false
         deleteButton.isEnabled = request.state != .pending
     }
@@ -511,8 +538,8 @@ final class AgentTaskHistoryWindowController: NSWindowController, NSOutlineViewD
         detailTextView.string = currentLanguage == .chinese
             ? "完成一次 Agent Run 后，任务和结果会显示在这里。"
             : "Completed Agent Run tasks and results will appear here."
-        openButton.isEnabled = false
-        revealButton.isEnabled = false
+        moreButton.isEnabled = false
+        moreButton.isHidden = true
         allowButton.isHidden = true
         denyButton.isHidden = true
         answerButton.isHidden = true
