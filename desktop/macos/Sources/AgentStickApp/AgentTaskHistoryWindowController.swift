@@ -424,7 +424,10 @@ final class AgentTaskHistoryWindowController: NSWindowController, NSOutlineViewD
             ? (currentLanguage == .chinese ? "完成" : "Completed")
             : (currentLanguage == .chinese ? "失败" : "Failed")
         titleLabel.stringValue = entry.prompt
-        metadataLabel.stringValue = "\(entry.agent.capitalized) · \(status) · \(formatter.string(from: entry.date)) · \(entry.url.path)"
+        setMetadata(
+            statusColor: nsColor(for: (entry.succeeded ? HistoryStatus.taskSucceeded : HistoryStatus.taskFailed).presentation.color),
+            text: "\(entry.agent.capitalized) · \(status) · \(formatter.string(from: entry.date)) · \(entry.url.path)"
+        )
         detailTextView.textStorage?.setAttributedString(MarkdownTextRenderer.render(entry.markdown))
         detailTextView.scrollToBeginningOfDocument(nil)
         openButton.isEnabled = true
@@ -444,14 +447,18 @@ final class AgentTaskHistoryWindowController: NSWindowController, NSOutlineViewD
         formatter.dateStyle = .medium
         formatter.timeStyle = .short
         let status: String
+        let statusKind: HistoryStatus
         switch request.state {
-        case .pending: status = currentLanguage == .chinese ? "等待授权" : "Waiting for approval"
-        case .continuing: status = currentLanguage == .chinese ? "已允许 · 继续执行中" : "Allowed · Continuing"
-        case .allowed: status = currentLanguage == .chinese ? "已允许" : "Allowed"
-        case .denied: status = currentLanguage == .chinese ? "已拒绝" : "Denied"
+        case .pending: status = currentLanguage == .chinese ? "等待授权" : "Waiting for approval"; statusKind = .approvalPending
+        case .continuing: status = currentLanguage == .chinese ? "已允许 · 继续执行中" : "Allowed · Continuing"; statusKind = .approvalContinuing
+        case .allowed: status = currentLanguage == .chinese ? "已允许" : "Allowed"; statusKind = .approvalAllowed
+        case .denied: status = currentLanguage == .chinese ? "已拒绝" : "Denied"; statusKind = .approvalDenied
         }
         titleLabel.stringValue = request.summary
-        metadataLabel.stringValue = "\(request.agent) · \(request.kind) · \(status) · \(formatter.string(from: request.createdAt))"
+        setMetadata(
+            statusColor: nsColor(for: statusKind.presentation.color),
+            text: "\(request.agent) · \(request.kind) · \(status) · \(formatter.string(from: request.createdAt))"
+        )
         detailTextView.textStorage?.setAttributedString(MarkdownTextRenderer.render(request.details))
         detailTextView.scrollToBeginningOfDocument(nil)
         let pending = request.state == .pending
@@ -472,13 +479,17 @@ final class AgentTaskHistoryWindowController: NSWindowController, NSOutlineViewD
         formatter.dateStyle = .medium
         formatter.timeStyle = .short
         let status: String
+        let statusKind: HistoryStatus
         switch request.state {
-        case .pending: status = currentLanguage == .chinese ? "等待回答" : "Waiting for input"
-        case .submitted: status = currentLanguage == .chinese ? "已回答" : "Answered"
-        case .cancelled: status = currentLanguage == .chinese ? "已取消" : "Cancelled"
+        case .pending: status = currentLanguage == .chinese ? "等待回答" : "Waiting for input"; statusKind = .inputPending
+        case .submitted: status = currentLanguage == .chinese ? "已回答" : "Answered"; statusKind = .inputSubmitted
+        case .cancelled: status = currentLanguage == .chinese ? "已取消" : "Cancelled"; statusKind = .inputCancelled
         }
         titleLabel.stringValue = request.summary
-        metadataLabel.stringValue = "\(request.agent) · \(status) · \(formatter.string(from: request.createdAt))"
+        setMetadata(
+            statusColor: nsColor(for: statusKind.presentation.color),
+            text: "\(request.agent) · \(status) · \(formatter.string(from: request.createdAt))"
+        )
         detailTextView.textStorage?.setAttributedString(MarkdownTextRenderer.render(request.details))
         detailTextView.scrollToBeginningOfDocument(nil)
         let pending = request.state == .pending
@@ -496,7 +507,7 @@ final class AgentTaskHistoryWindowController: NSWindowController, NSOutlineViewD
 
     private func displayEmptyState() {
         titleLabel.stringValue = currentLanguage == .chinese ? "暂无任务记录" : "No task history"
-        metadataLabel.stringValue = ""
+        metadataLabel.attributedStringValue = NSAttributedString(string: "")
         detailTextView.string = currentLanguage == .chinese
             ? "完成一次 Agent Run 后，任务和结果会显示在这里。"
             : "Completed Agent Run tasks and results will appear here."
@@ -541,58 +552,95 @@ final class AgentTaskHistoryWindowController: NSWindowController, NSOutlineViewD
 
     func outlineView(_ outlineView: NSOutlineView, viewFor tableColumn: NSTableColumn?, item: Any) -> NSView? {
         if let section = item as? HistorySectionItem {
-            let identifier = NSUserInterfaceItemIdentifier("HistorySectionHeader")
-            let cell = (outlineView.makeView(withIdentifier: identifier, owner: self) as? NSTableCellView) ?? {
-                let value = NSTableCellView()
-                value.identifier = identifier
-                let label = NSTextField(labelWithString: "")
-                label.font = .systemFont(ofSize: 11, weight: .bold)
-                label.textColor = .secondaryLabelColor
-                label.translatesAutoresizingMaskIntoConstraints = false
-                value.textField = label
-                value.addSubview(label)
-                NSLayoutConstraint.activate([
-                    label.leadingAnchor.constraint(equalTo: value.leadingAnchor, constant: 12),
-                    label.centerYAnchor.constraint(equalTo: value.centerYAnchor)
-                ])
-                return value
-            }()
-            cell.textField?.stringValue = section.kind.title.uppercased()
-            return cell
+            return sectionHeaderView(for: section)
         }
         guard let entryItem = item as? HistoryEntryItem else { return nil }
-        let identifier = NSUserInterfaceItemIdentifier("TaskHistoryCell")
-        let cell = (outlineView.makeView(withIdentifier: identifier, owner: self) as? NSTableCellView) ?? {
-            let value = NSTableCellView()
-            value.identifier = identifier
-            let label = NSTextField(wrappingLabelWithString: "")
-            label.maximumNumberOfLines = 2
-            label.lineBreakMode = .byTruncatingTail
-            label.translatesAutoresizingMaskIntoConstraints = false
-            value.textField = label
-            value.addSubview(label)
-            NSLayoutConstraint.activate([
-                label.leadingAnchor.constraint(equalTo: value.leadingAnchor, constant: 12),
-                label.trailingAnchor.constraint(equalTo: value.trailingAnchor, constant: -10),
-                label.centerYAnchor.constraint(equalTo: value.centerYAnchor)
-            ])
-            return value
+        return entryCellView(for: entryItem.entry)
+    }
+
+    private func sectionHeaderView(for section: HistorySectionItem) -> NSView {
+        let identifier = NSUserInterfaceItemIdentifier("HistorySectionHeader")
+        let cell = (outlineView.makeView(withIdentifier: identifier, owner: self) as? HistorySectionHeaderCellView) ?? {
+            let view = HistorySectionHeaderCellView()
+            view.identifier = identifier
+            return view
         }()
-        switch entryItem.entry {
-        case .task(let entry):
-            let symbol = entry.succeeded ? "✓" : "!"
-            cell.textField?.stringValue = "\(symbol) \(entry.agent.capitalized)\n\(entry.prompt)"
-        case .approval(let request):
-            let symbol: String
-            switch request.state { case .pending: symbol = "●"; case .continuing: symbol = "↻"; case .allowed: symbol = "✓"; case .denied: symbol = "×" }
-            cell.textField?.stringValue = "\(symbol) \(request.agent) · \(request.kind)\n\(request.summary)"
-        case .input(let request):
-            let symbol: String
-            switch request.state { case .pending: symbol = "?"; case .submitted: symbol = "✓"; case .cancelled: symbol = "×" }
-            cell.textField?.stringValue = "\(symbol) \(request.agent) · \(currentLanguage == .chinese ? "需要回答" : "Input needed")\n\(request.summary)"
-        }
-        cell.textField?.textColor = .labelColor
+        cell.configure(title: section.kind.title)
         return cell
+    }
+
+    private func entryCellView(for entry: HistoryEntry) -> NSView {
+        let identifier = NSUserInterfaceItemIdentifier("TaskHistoryCell")
+        let cell = (outlineView.makeView(withIdentifier: identifier, owner: self) as? HistoryEntryCellView) ?? {
+            let view = HistoryEntryCellView()
+            view.identifier = identifier
+            return view
+        }()
+        let status = historyStatus(for: entry)
+        cell.configure(
+            symbolName: status.presentation.symbolName,
+            tintColor: nsColor(for: status.presentation.color),
+            title: title(for: entry),
+            subtitle: subtitle(for: entry)
+        )
+        return cell
+    }
+
+    private func title(for entry: HistoryEntry) -> String {
+        switch entry {
+        case .task(let task): return task.agent.capitalized
+        case .approval(let request): return "\(request.agent) · \(request.kind)"
+        case .input(let request): return "\(request.agent) · \(currentLanguage == .chinese ? "需要回答" : "Input needed")"
+        }
+    }
+
+    private func subtitle(for entry: HistoryEntry) -> String {
+        switch entry {
+        case .task(let task): return task.prompt
+        case .approval(let request): return request.summary
+        case .input(let request): return request.summary
+        }
+    }
+
+    private func historyStatus(for entry: HistoryEntry) -> HistoryStatus {
+        switch entry {
+        case .task(let task): return task.succeeded ? .taskSucceeded : .taskFailed
+        case .approval(let request):
+            switch request.state {
+            case .pending: return .approvalPending
+            case .continuing: return .approvalContinuing
+            case .allowed: return .approvalAllowed
+            case .denied: return .approvalDenied
+            }
+        case .input(let request):
+            switch request.state {
+            case .pending: return .inputPending
+            case .submitted: return .inputSubmitted
+            case .cancelled: return .inputCancelled
+            }
+        }
+    }
+
+    private func nsColor(for color: HistoryStatusColor) -> NSColor {
+        switch color {
+        case .pending: return .systemOrange
+        case .success: return .systemGreen
+        case .failure: return .systemRed
+        case .cancelled: return .secondaryLabelColor
+        case .inProgress: return .systemBlue
+        }
+    }
+
+    private func setMetadata(statusColor: NSColor, text: String) {
+        let attributed = NSMutableAttributedString(
+            string: "●  ",
+            attributes: [.foregroundColor: statusColor, .font: NSFont.systemFont(ofSize: 11, weight: .bold)]
+        )
+        attributed.append(NSAttributedString(
+            string: text,
+            attributes: [.foregroundColor: NSColor.secondaryLabelColor, .font: NSFont.systemFont(ofSize: 12)]
+        ))
+        metadataLabel.attributedStringValue = attributed
     }
 
     func outlineViewSelectionDidChange(_ notification: Notification) {
