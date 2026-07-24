@@ -315,7 +315,7 @@ final class AgentTaskHistoryWindowController: NSWindowController, NSOutlineViewD
             if let targetPath { if case .task(let value) = entry { return value.url.standardizedFileURL.path == targetPath } }
             return false
         }
-        let fallback = (inputID == nil && approvalID == nil && targetPath == nil) ? allEntries.first : nil
+        let fallback = allEntries.first
         if let entry = targetEntry ?? fallback, let item = outlineItem(for: entry) {
             let row = outlineView.row(forItem: item)
             if row >= 0 {
@@ -333,7 +333,7 @@ final class AgentTaskHistoryWindowController: NSWindowController, NSOutlineViewD
             HistoryGroupingItem(id: historyEntryID($0), isPending: isPendingEntry($0), date: interactionDate($0))
         }
         let grouped = HistoryEntryGrouping.group(items)
-        let byID = Dictionary(uniqueKeysWithValues: all.map { (historyEntryID($0), $0) })
+        let byID = Dictionary(all.map { (historyEntryID($0), $0) }, uniquingKeysWith: { first, _ in first })
         return (
             grouped.pending.compactMap { byID[$0.id] },
             grouped.history.compactMap { byID[$0.id] }
