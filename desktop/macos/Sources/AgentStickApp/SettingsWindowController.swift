@@ -50,12 +50,13 @@ final class SettingsWindowController: NSWindowController {
     init(config: AppConfig = AppConfig.load()) {
         self.config = config
         let window = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 640, height: 1000),
-            styleMask: [.titled, .closable, .miniaturizable],
+            contentRect: NSRect(x: 0, y: 0, width: 640, height: 760),
+            styleMask: [.titled, .closable, .miniaturizable, .resizable],
             backing: .buffered,
             defer: false
         )
         window.title = L10n.agentStickSettings
+        window.minSize = NSSize(width: 640, height: 480)
         window.isReleasedWhenClosed = false
         super.init(window: window)
         buildContent()
@@ -88,12 +89,18 @@ final class SettingsWindowController: NSWindowController {
     private func buildContent() {
         guard let contentView = window?.contentView else { return }
 
+        let scrollView = NSScrollView()
+        scrollView.hasVerticalScroller = true
+        scrollView.drawsBackground = false
+        scrollView.translatesAutoresizingMaskIntoConstraints = false
+        contentView.addSubview(scrollView)
+
         let stack = NSStackView()
         stack.orientation = .vertical
         stack.alignment = .leading
         stack.spacing = 16
         stack.translatesAutoresizingMaskIntoConstraints = false
-        contentView.addSubview(stack)
+        scrollView.documentView = stack
 
         stack.addArrangedSubview(sectionTitle("ASR"))
         configureProviderPopup()
@@ -223,11 +230,18 @@ final class SettingsWindowController: NSWindowController {
 
         statusLabel.textColor = .secondaryLabelColor
 
+        let stackBottomConstraint = stack.bottomAnchor.constraint(equalTo: scrollView.contentView.bottomAnchor, constant: -24)
+        stackBottomConstraint.priority = .defaultLow
+
         NSLayoutConstraint.activate([
-            stack.leadingAnchor.constraint(equalTo: contentView.leadingAnchor, constant: 24),
-            stack.trailingAnchor.constraint(equalTo: contentView.trailingAnchor, constant: -24),
-            stack.topAnchor.constraint(equalTo: contentView.topAnchor, constant: 24),
-            stack.bottomAnchor.constraint(equalTo: contentView.bottomAnchor, constant: -24)
+            scrollView.leadingAnchor.constraint(equalTo: contentView.leadingAnchor),
+            scrollView.trailingAnchor.constraint(equalTo: contentView.trailingAnchor),
+            scrollView.topAnchor.constraint(equalTo: contentView.topAnchor),
+            scrollView.bottomAnchor.constraint(equalTo: contentView.bottomAnchor),
+            stack.leadingAnchor.constraint(equalTo: scrollView.contentView.leadingAnchor, constant: 24),
+            stack.trailingAnchor.constraint(equalTo: scrollView.contentView.trailingAnchor, constant: -24),
+            stack.topAnchor.constraint(equalTo: scrollView.contentView.topAnchor, constant: 24),
+            stackBottomConstraint
         ])
     }
 
