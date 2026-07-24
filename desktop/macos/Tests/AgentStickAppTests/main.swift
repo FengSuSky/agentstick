@@ -231,4 +231,25 @@ expect(
     "Pending input requests should use a question-mark glyph"
 )
 
+let groupingNow = Date(timeIntervalSince1970: 1_000_000)
+let groupingOlderHistory = HistoryGroupingItem(id: "history-older", isPending: false, date: groupingNow.addingTimeInterval(-100))
+let groupingNewerHistory = HistoryGroupingItem(id: "history-newer", isPending: false, date: groupingNow)
+let groupingPendingOld = HistoryGroupingItem(id: "pending-old", isPending: true, date: groupingNow.addingTimeInterval(-500))
+let groupingPendingNew = HistoryGroupingItem(id: "pending-new", isPending: true, date: groupingNow.addingTimeInterval(-10))
+let groupingResult = HistoryEntryGrouping.group([
+    groupingOlderHistory, groupingPendingOld, groupingNewerHistory, groupingPendingNew
+])
+expect(
+    groupingResult.pending.map(\.id) == ["pending-new", "pending-old"],
+    "Pending items should be grouped together and sorted newest first"
+)
+expect(
+    groupingResult.history.map(\.id) == ["history-newer", "history-older"],
+    "Non-pending items should be grouped together and sorted newest first"
+)
+expect(
+    HistoryEntryGrouping.group([]).pending.isEmpty && HistoryEntryGrouping.group([]).history.isEmpty,
+    "Grouping an empty list should yield two empty groups"
+)
+
 print("AgentStickCoreTests passed")
