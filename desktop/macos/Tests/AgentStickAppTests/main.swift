@@ -177,4 +177,33 @@ expect(
 )
 let longTitle = AgentDisplayTitle.from(String(repeating: "很长", count: 100), fallback: "Task")
 expect(longTitle.count == 30 && longTitle.hasSuffix("…"), "History titles should be capped at 30 characters")
+
+expect(
+    OverlayColorScheme.backgroundComponents(for: .white, appearance: .light)
+        == OverlayColorComponents(red: 1.0, green: 1.0, blue: 1.0, alpha: 0.86),
+    "White theme light background should match the legacy overlay color"
+)
+expect(
+    OverlayColorScheme.backgroundComponents(for: .white, appearance: .dark)
+        != OverlayColorScheme.backgroundComponents(for: .white, appearance: .light),
+    "Dark appearance should use a different background than light appearance"
+)
+expect(
+    OverlayColorScheme.isLightText(for: .dark),
+    "Dark appearance should use light (white-based) text for contrast"
+)
+expect(
+    !OverlayColorScheme.isLightText(for: .light),
+    "Light appearance should keep dark (black-based) text"
+)
+expect(
+    OverlayColorScheme.textAlpha(for: .dark) > OverlayColorScheme.textAlpha(for: .light),
+    "Dark mode text should be more opaque so it reads clearly on a dark card"
+)
+for theme in OverlayThemeName.allCases {
+    let light = OverlayColorScheme.backgroundComponents(for: theme, appearance: .light)
+    let dark = OverlayColorScheme.backgroundComponents(for: theme, appearance: .dark)
+    expect(light.alpha > 0 && dark.alpha > 0, "\(theme) should define a background for both appearances")
+}
+
 print("AgentStickCoreTests passed")
