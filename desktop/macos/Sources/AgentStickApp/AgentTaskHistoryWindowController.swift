@@ -446,13 +446,13 @@ final class AgentTaskHistoryWindowController: NSWindowController, NSOutlineViewD
         let formatter = DateFormatter()
         formatter.dateStyle = .medium
         formatter.timeStyle = .short
+        let statusKind = historyStatus(for: .approval(request))
         let status: String
-        let statusKind: HistoryStatus
         switch request.state {
-        case .pending: status = currentLanguage == .chinese ? "等待授权" : "Waiting for approval"; statusKind = .approvalPending
-        case .continuing: status = currentLanguage == .chinese ? "已允许 · 继续执行中" : "Allowed · Continuing"; statusKind = .approvalContinuing
-        case .allowed: status = currentLanguage == .chinese ? "已允许" : "Allowed"; statusKind = .approvalAllowed
-        case .denied: status = currentLanguage == .chinese ? "已拒绝" : "Denied"; statusKind = .approvalDenied
+        case .pending: status = currentLanguage == .chinese ? "等待授权" : "Waiting for approval"
+        case .continuing: status = currentLanguage == .chinese ? "已允许 · 继续执行中" : "Allowed · Continuing"
+        case .allowed: status = currentLanguage == .chinese ? "已允许" : "Allowed"
+        case .denied: status = currentLanguage == .chinese ? "已拒绝" : "Denied"
         }
         titleLabel.stringValue = request.summary
         setMetadata(
@@ -478,12 +478,12 @@ final class AgentTaskHistoryWindowController: NSWindowController, NSOutlineViewD
         let formatter = DateFormatter()
         formatter.dateStyle = .medium
         formatter.timeStyle = .short
+        let statusKind = historyStatus(for: .input(request))
         let status: String
-        let statusKind: HistoryStatus
         switch request.state {
-        case .pending: status = currentLanguage == .chinese ? "等待回答" : "Waiting for input"; statusKind = .inputPending
-        case .submitted: status = currentLanguage == .chinese ? "已回答" : "Answered"; statusKind = .inputSubmitted
-        case .cancelled: status = currentLanguage == .chinese ? "已取消" : "Cancelled"; statusKind = .inputCancelled
+        case .pending: status = currentLanguage == .chinese ? "等待回答" : "Waiting for input"
+        case .submitted: status = currentLanguage == .chinese ? "已回答" : "Answered"
+        case .cancelled: status = currentLanguage == .chinese ? "已取消" : "Cancelled"
         }
         titleLabel.stringValue = request.summary
         setMetadata(
@@ -581,9 +581,24 @@ final class AgentTaskHistoryWindowController: NSWindowController, NSOutlineViewD
             symbolName: status.presentation.symbolName,
             tintColor: nsColor(for: status.presentation.color),
             title: title(for: entry),
-            subtitle: subtitle(for: entry)
+            subtitle: subtitle(for: entry),
+            accessibilityDescription: accessibilityLabel(for: status)
         )
         return cell
+    }
+
+    private func accessibilityLabel(for status: HistoryStatus) -> String {
+        switch status {
+        case .taskSucceeded: return currentLanguage == .chinese ? "完成" : "Completed"
+        case .taskFailed: return currentLanguage == .chinese ? "失败" : "Failed"
+        case .approvalPending: return currentLanguage == .chinese ? "等待授权" : "Waiting for approval"
+        case .approvalContinuing: return currentLanguage == .chinese ? "已允许，继续执行中" : "Allowed, continuing"
+        case .approvalAllowed: return currentLanguage == .chinese ? "已允许" : "Allowed"
+        case .approvalDenied: return currentLanguage == .chinese ? "已拒绝" : "Denied"
+        case .inputPending: return currentLanguage == .chinese ? "等待回答" : "Waiting for input"
+        case .inputSubmitted: return currentLanguage == .chinese ? "已回答" : "Answered"
+        case .inputCancelled: return currentLanguage == .chinese ? "已取消" : "Cancelled"
+        }
     }
 
     private func title(for entry: HistoryEntry) -> String {

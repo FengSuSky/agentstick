@@ -48,8 +48,8 @@ final class HistoryEntryCellView: NSTableCellView {
         ])
     }
 
-    func configure(symbolName: String, tintColor: NSColor, title: String, subtitle: String) {
-        iconView.image = NSImage(systemSymbolName: symbolName, accessibilityDescription: nil)
+    func configure(symbolName: String, tintColor: NSColor, title: String, subtitle: String, accessibilityDescription: String) {
+        iconView.image = NSImage(systemSymbolName: symbolName, accessibilityDescription: accessibilityDescription)
         iconView.contentTintColor = tintColor
         titleLabel.stringValue = title
         subtitleLabel.stringValue = subtitle
