@@ -206,4 +206,29 @@ for theme in OverlayThemeName.allCases {
     expect(light.alpha > 0 && dark.alpha > 0, "\(theme) should define a background for both appearances")
 }
 
+expect(
+    HistoryStatus.taskSucceeded.presentation == HistoryStatusPresentation(symbolName: "checkmark.circle.fill", color: .success),
+    "Succeeded tasks should present as a filled checkmark in the success color"
+)
+expect(
+    HistoryStatus.taskFailed.presentation.color == .failure,
+    "Failed tasks should present in the failure color"
+)
+expect(
+    HistoryStatus.approvalPending.presentation.color == .pending,
+    "Pending approvals should present in the pending color"
+)
+expect(
+    HistoryStatus.approvalContinuing.presentation.color == .inProgress,
+    "Continuing approvals should present in the in-progress color"
+)
+expect(
+    HistoryStatus.inputCancelled.presentation.color == .cancelled,
+    "Cancelled input requests should present in the cancelled color"
+)
+expect(
+    HistoryStatus.inputPending.presentation.symbolName == "questionmark.circle.fill",
+    "Pending input requests should use a question-mark glyph"
+)
+
 print("AgentStickCoreTests passed")
