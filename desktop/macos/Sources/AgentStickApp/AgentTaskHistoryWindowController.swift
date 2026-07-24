@@ -224,6 +224,7 @@ final class AgentTaskHistoryWindowController: NSWindowController, NSOutlineViewD
 
         moreButton.pullsDown = true
         moreButton.bezelStyle = .inline
+        moreButton.isBordered = false
         moreButton.imagePosition = .noImage
         let moreMenu = NSMenu()
         moreMenu.addItem(NSMenuItem(title: currentLanguage == .chinese ? "更多" : "More", action: nil, keyEquivalent: ""))
