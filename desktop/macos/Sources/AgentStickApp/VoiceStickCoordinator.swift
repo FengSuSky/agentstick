@@ -1015,14 +1015,21 @@ final class AgentStickCoordinator {
         if finishPendingAgentVoiceAnswer(text) {
             return
         }
+        if text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            pastedFinalText = true
+            pendingPasteState = .idle
+            finishRecognitionCycle()
+            statusController.hideOverlay()
+            statusController.setStatus(L10n.ready)
+            sendUIStateForActiveDevice("ready")
+            mainInputState = .ready
+            return
+        }
         let profile = outputProfile(for: activeDeviceID)
         if profile.target == .subtitle {
             pastedFinalText = true
             pendingPasteState = .idle
-            let deviceID = activeDeviceID
-            if !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                showSubtitleText(text, profile: profile, deviceID: deviceID)
-            }
+            showSubtitleText(text, profile: profile, deviceID: activeDeviceID)
             finishRecognitionCycle()
             statusController.hideOverlay()
             statusController.setStatus(L10n.ready)
@@ -1032,16 +1039,6 @@ final class AgentStickCoordinator {
         }
         if profile.target == .agentCLI {
             enterPendingConfirmation(text: text)
-            return
-        }
-        if text.isEmpty {
-            pastedFinalText = true
-            pendingPasteState = .idle
-            finishRecognitionCycle()
-            statusController.hideOverlay()
-            statusController.setStatus(L10n.ready)
-            sendUIStateForActiveDevice("ready")
-            mainInputState = .ready
             return
         }
 

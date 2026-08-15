@@ -362,4 +362,79 @@ expect(
 )
 let longTitle = AgentDisplayTitle.from(String(repeating: "很长", count: 100), fallback: "Task")
 expect(longTitle.count == 30 && longTitle.hasSuffix("…"), "History titles should be capped at 30 characters")
+
+expect(
+    OverlayColorScheme.backgroundComponents(for: .white, appearance: .light)
+        == OverlayColorComponents(red: 1.0, green: 1.0, blue: 1.0, alpha: 0.86),
+    "White theme light background should match the legacy overlay color"
+)
+expect(
+    OverlayColorScheme.backgroundComponents(for: .white, appearance: .dark)
+        != OverlayColorScheme.backgroundComponents(for: .white, appearance: .light),
+    "Dark appearance should use a different background than light appearance"
+)
+expect(
+    OverlayColorScheme.isLightText(for: .dark),
+    "Dark appearance should use light (white-based) text for contrast"
+)
+expect(
+    !OverlayColorScheme.isLightText(for: .light),
+    "Light appearance should keep dark (black-based) text"
+)
+expect(
+    OverlayColorScheme.textAlpha(for: .dark) > OverlayColorScheme.textAlpha(for: .light),
+    "Dark mode text should be more opaque so it reads clearly on a dark card"
+)
+for theme in OverlayThemeName.allCases {
+    let light = OverlayColorScheme.backgroundComponents(for: theme, appearance: .light)
+    let dark = OverlayColorScheme.backgroundComponents(for: theme, appearance: .dark)
+    expect(light.alpha > 0 && dark.alpha > 0, "\(theme) should define a background for both appearances")
+}
+
+expect(
+    HistoryStatus.taskSucceeded.presentation == HistoryStatusPresentation(symbolName: "checkmark.circle.fill", color: .success),
+    "Succeeded tasks should present as a filled checkmark in the success color"
+)
+expect(
+    HistoryStatus.taskFailed.presentation.color == .failure,
+    "Failed tasks should present in the failure color"
+)
+expect(
+    HistoryStatus.approvalPending.presentation.color == .pending,
+    "Pending approvals should present in the pending color"
+)
+expect(
+    HistoryStatus.approvalContinuing.presentation.color == .inProgress,
+    "Continuing approvals should present in the in-progress color"
+)
+expect(
+    HistoryStatus.inputCancelled.presentation.color == .cancelled,
+    "Cancelled input requests should present in the cancelled color"
+)
+expect(
+    HistoryStatus.inputPending.presentation.symbolName == "questionmark.circle.fill",
+    "Pending input requests should use a question-mark glyph"
+)
+
+let groupingNow = Date(timeIntervalSince1970: 1_000_000)
+let groupingOlderHistory = HistoryGroupingItem(id: "history-older", isPending: false, date: groupingNow.addingTimeInterval(-100))
+let groupingNewerHistory = HistoryGroupingItem(id: "history-newer", isPending: false, date: groupingNow)
+let groupingPendingOld = HistoryGroupingItem(id: "pending-old", isPending: true, date: groupingNow.addingTimeInterval(-500))
+let groupingPendingNew = HistoryGroupingItem(id: "pending-new", isPending: true, date: groupingNow.addingTimeInterval(-10))
+let groupingResult = HistoryEntryGrouping.group([
+    groupingOlderHistory, groupingPendingOld, groupingNewerHistory, groupingPendingNew
+])
+expect(
+    groupingResult.pending.map(\.id) == ["pending-new", "pending-old"],
+    "Pending items should be grouped together and sorted newest first"
+)
+expect(
+    groupingResult.history.map(\.id) == ["history-newer", "history-older"],
+    "Non-pending items should be grouped together and sorted newest first"
+)
+expect(
+    HistoryEntryGrouping.group([]).pending.isEmpty && HistoryEntryGrouping.group([]).history.isEmpty,
+    "Grouping an empty list should yield two empty groups"
+)
+
 print("AgentStickCoreTests passed")
