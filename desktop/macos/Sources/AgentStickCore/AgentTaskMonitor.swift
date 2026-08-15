@@ -57,7 +57,14 @@ public struct AgentTaskMonitor {
         case .waitingForApproval:
             snapshot.state = .waitingForApproval
         case .needsInput:
-            snapshot.state = .needsInput
+            // Claude-style agents emit Notification hooks both for real
+            // mid-turn questions and for session-start toasts / idle reminders
+            // fired ~60s after Stop. Only a notification during an active turn
+            // means the agent is blocked on the user; otherwise keep the
+            // current state so "Done" is not overwritten with "Needs You".
+            if snapshot.state == .running || snapshot.state == .waitingForApproval {
+                snapshot.state = .needsInput
+            }
         case .completed:
             snapshot.state = .completed
         case .failed:

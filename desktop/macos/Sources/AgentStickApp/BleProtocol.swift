@@ -107,9 +107,24 @@ enum BleProtocol {
         let payload = [
             "event": "ui_state",
             "state": state,
-            "text": text
+            "text": deviceSafeText(text)
         ]
         return (try? JSONSerialization.data(withJSONObject: payload)) ?? Data()
+    }
+
+    /// The device firmware ships LVGL's Montserrat fonts, which cover printable
+    /// ASCII only — CJK and other non-ASCII glyphs render as blank boxes, and
+    /// the firmware text buffer is 96 bytes. Keep only printable ASCII, and
+    /// cap the length well below the buffer.
+    static func deviceSafeText(_ text: String, maxLength: Int = 80) -> String {
+        let ascii = String(text.unicodeScalars.filter { $0.value >= 0x20 && $0.value <= 0x7E })
+        var result = ascii
+            .replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
+            .trimmingCharacters(in: .whitespaces)
+        if result.count > maxLength {
+            result = String(result.prefix(maxLength)).trimmingCharacters(in: .whitespaces)
+        }
+        return result
     }
 
     static func interactionModePayload(_ mode: InteractionMode) -> Data {

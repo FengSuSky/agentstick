@@ -58,6 +58,191 @@ expect(codexStop.agent == .codexCLI, "Codex source should map to Codex CLI")
 expect(codexStop.taskID == "turn-1", "Codex turn id should decode")
 expect(codexStop.summary == "Done.", "Codex final summary should decode")
 
+let workBuddyStopJSON = """
+{
+  "hook_event_name": "Stop",
+  "session_id": "workbuddy-session",
+  "cwd": "/tmp/report",
+  "last_assistant_message": "周报已生成"
+}
+""".data(using: .utf8)!
+let workBuddyStop = try AgentHookPayloadMapper.event(from: workBuddyStopJSON, source: "workbuddy")
+
+expect(workBuddyStop.kind == .completed, "WorkBuddy Stop should map to completed")
+expect(workBuddyStop.agent == .workBuddy, "WorkBuddy source should map to WorkBuddy agent")
+expect(workBuddyStop.surface == .desktop, "WorkBuddy hooks should map to desktop surface")
+
+let hookSourceExpectations: [(String, AgentKind)] = [
+    ("claude", .claudeCode),
+    ("codex", .codexCLI),
+    ("workbuddy", .workBuddy),
+    ("codebuddy", .codeBuddy),
+    ("gemini", .geminiCLI),
+    ("qwen", .qwenCode),
+    ("qoder", .qoder),
+    ("factory", .factoryCLI),
+    ("cursor", .cursorCLI),
+]
+for (source, kind) in hookSourceExpectations {
+    let mapped = try AgentHookPayloadMapper.event(from: workBuddyStopJSON, source: source)
+    expect(mapped.agent == kind, "\(source) source should map to \(kind)")
+}
+
+let cursorStopJSON = """
+{
+  "hook_event_name": "stop",
+  "session_id": "cursor-session"
+}
+""".data(using: .utf8)!
+let cursorStop = try AgentHookPayloadMapper.event(from: cursorStopJSON, source: "cursor")
+expect(cursorStop.kind == .completed, "Cursor lowercase stop should map to completed")
+
+let cursorPromptJSON = """
+{
+  "hook_event_name": "beforeSubmitPrompt",
+  "session_id": "cursor-session"
+}
+""".data(using: .utf8)!
+let cursorPrompt = try AgentHookPayloadMapper.event(from: cursorPromptJSON, source: "cursor")
+expect(cursorPrompt.kind == .promptSubmitted, "Cursor beforeSubmitPrompt should map to prompt submitted")
+
+// Device state machine: idle notifications must not overwrite Done, mid-turn
+// questions must still surface, SessionEnd must not re-trigger the animation.
+var stateMonitor = AgentTaskMonitor()
+
+func hookEvent(_ name: String, session: String = "sm") throws -> AgentTaskEvent {
+    let json = """
+    {"hook_event_name": "\(name)", "session_id": "\(session)"}
+    """.data(using: .utf8)!
+    return try AgentHookPayloadMapper.event(from: json, source: "workbuddy")
+}
+
+let promptSnapshot = stateMonitor.apply(try hookEvent("UserPromptSubmit"))
+expect(promptSnapshot.state == .running, "Prompt submit should mark the task running")
+
+let questionSnapshot = stateMonitor.apply(try hookEvent("Notification"))
+expect(questionSnapshot.state == .needsInput, "Mid-turn notification should surface as needs input")
+
+let toolSnapshot = stateMonitor.apply(try hookEvent("PostToolUse"))
+expect(toolSnapshot.state == .running, "Post-tool activity should return the task to running")
+
+let stopSnapshot = stateMonitor.apply(try hookEvent("Stop"))
+expect(stopSnapshot.state == .completed, "Stop should mark the task completed")
+
+let idleReminderSnapshot = stateMonitor.apply(try hookEvent("Notification"))
+expect(idleReminderSnapshot.state == .completed, "Idle notification after Stop must not overwrite completed with needs input")
+
+let sessionEndSnapshot = stateMonitor.apply(try hookEvent("SessionEnd"))
+expect(sessionEndSnapshot.state == .completed, "SessionEnd should stay completed instead of restarting the working animation")
+
+var freshMonitor = AgentTaskMonitor()
+let freshNotification = freshMonitor.apply(try hookEvent("Notification", session: "sm3"))
+expect(freshNotification.state != .needsInput, "Notification on an idle session (session-start toast) should not demand attention")
+
+let toolEvent = try AgentHookPayloadMapper.event(
+    from: """
+    {"hook_event_name": "PostToolUse", "session_id": "sm4", "tool_name": "Read"}
+    """.data(using: .utf8)!,
+    source: "workbuddy"
+)
+expect(toolEvent.title == "Read", "PostToolUse should surface the tool name as title")
+expect(toolEvent.kind == .turnStarted, "PostToolUse should map to turn activity")
+
+do {
+    var temporaryDirectory = URL(fileURLWithPath: NSTemporaryDirectory())
+        .appendingPathComponent("agentstick-hook-tests-\(UUID().uuidString)", isDirectory: true)
+    try FileManager.default.createDirectory(at: temporaryDirectory, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: temporaryDirectory) }
+
+    let settingsURL = temporaryDirectory.appendingPathComponent("settings.json")
+    let existingConfig = """
+    {
+      "enabledPlugins": {"docs": true},
+      "hooks": {
+        "Stop": [
+          {"matcher": "*", "hooks": [{"type": "command", "command": "/Users/tester/.vibe-island/bin/vibe-island-bridge --source workbuddy"}]}
+        ]
+      }
+    }
+    """
+    try existingConfig.data(using: .utf8)?.write(to: settingsURL)
+
+    let command = "/Users/tester/.agentstick/bin/agentstick-bridge --source workbuddy"
+    let firstInstall = try AgentHookRegistration.install(
+        command: command, into: settingsURL, format: .nested, events: AgentHookRegistration.standardEvents
+    )
+    expect(firstInstall, "First install should modify the config")
+
+    let installed = try JSONSerialization.jsonObject(with: Data(contentsOf: settingsURL)) as! [String: Any]
+    let installedHooks = installed["hooks"] as! [String: Any]
+    for event in AgentHookRegistration.standardEvents {
+        let groups = installedHooks[event] as! [[String: Any]]
+        let commands = groups.flatMap { $0["hooks"] as? [[String: Any]] ?? [] }.compactMap { $0["command"] as? String }
+        expect(commands.contains(command), "\(event) should contain the AgentStick command")
+    }
+    let stopGroups = installedHooks["Stop"] as! [[String: Any]]
+    expect(stopGroups.count == 2, "Third-party Stop hooks must be preserved")
+    expect((installed["enabledPlugins"] as? [String: Any])?["docs"] as? Bool == true, "Unrelated config keys must be preserved")
+    expect(
+        AgentHookRegistration.isInstalled(command: command, in: settingsURL, format: .nested, events: AgentHookRegistration.standardEvents),
+        "isInstalled should detect the registration"
+    )
+
+    let secondInstall = try AgentHookRegistration.install(
+        command: command, into: settingsURL, format: .nested, events: AgentHookRegistration.standardEvents
+    )
+    expect(!secondInstall, "Second install should be a no-op")
+    let refreshedInstall = try AgentHookRegistration.install(
+        command: command.replacingOccurrences(of: "workbuddy", with: "claude"), into: settingsURL, format: .nested, events: AgentHookRegistration.standardEvents
+    )
+    expect(refreshedInstall, "A changed command should refresh the registration")
+    let didUninstall = try AgentHookRegistration.uninstall(from: settingsURL)
+    expect(didUninstall, "Uninstall should modify the config")
+
+    let cleaned = try JSONSerialization.jsonObject(with: Data(contentsOf: settingsURL)) as! [String: Any]
+    let cleanedHooks = cleaned["hooks"] as! [String: Any]
+    let stopCommands = (cleanedHooks["Stop"] as! [[String: Any]]).flatMap { $0["hooks"] as? [[String: Any]] ?? [] }.compactMap { $0["command"] as? String }
+    expect(!stopCommands.contains { $0.contains(AgentHookRegistration.marker) }, "Uninstall should remove all AgentStick commands")
+    expect(stopCommands.contains { $0.contains("vibe-island") }, "Uninstall must keep third-party hooks")
+    expect(!cleanedHooks.keys.contains("Notification"), "Events left empty by uninstall should be removed")
+
+    // Cursor uses a flat command list with its own event names.
+    let cursorURL = temporaryDirectory.appendingPathComponent("cursor-hooks.json")
+    let cursorConfig = """
+    {
+      "hooks": {
+        "stop": [
+          {"command": "/Users/tester/.vibe-island/bin/vibe-island-bridge --source cursor"}
+        ]
+      }
+    }
+    """
+    try cursorConfig.data(using: .utf8)?.write(to: cursorURL)
+    let cursorEvents = ["beforeSubmitPrompt", "stop"]
+    let cursorCommand = "/Users/tester/.agentstick/bin/agentstick-bridge --source cursor"
+    let cursorInstall = try AgentHookRegistration.install(
+        command: cursorCommand, into: cursorURL, format: .flatCommandList, events: cursorEvents
+    )
+    expect(cursorInstall, "Cursor install should modify the config")
+
+    let cursorRoot = try JSONSerialization.jsonObject(with: Data(contentsOf: cursorURL)) as! [String: Any]
+    let cursorHooks = cursorRoot["hooks"] as! [String: Any]
+    let cursorStopCommands = (cursorHooks["stop"] as! [[String: Any]]).compactMap { $0["command"] as? String }
+    expect(cursorStopCommands.count == 2, "Flat-format third-party hooks must be preserved")
+    expect(cursorStopCommands.contains(cursorCommand), "Flat format should append the AgentStick command")
+
+    let cursorReinstall = try AgentHookRegistration.install(
+        command: cursorCommand, into: cursorURL, format: .flatCommandList, events: cursorEvents
+    )
+    expect(!cursorReinstall, "Flat-format install should be idempotent")
+    let cursorUninstall = try AgentHookRegistration.uninstall(from: cursorURL)
+    expect(cursorUninstall, "Flat-format uninstall should modify the config")
+    let cursorCleaned = try JSONSerialization.jsonObject(with: Data(contentsOf: cursorURL)) as! [String: Any]
+    let cursorCleanedCommands = ((cursorCleaned["hooks"] as? [String: Any])?["stop"] as? [[String: Any]])?.compactMap { $0["command"] as? String } ?? []
+    expect(!cursorCleanedCommands.contains { $0.contains(AgentHookRegistration.marker) }, "Flat-format uninstall should remove AgentStick commands")
+    expect(cursorCleanedCommands.contains { $0.contains("vibe-island") }, "Flat-format uninstall must keep third-party hooks")
+}
+
 var monitor = AgentTaskMonitor()
 monitor.apply(AgentTaskEvent(
     kind: .promptSubmitted,

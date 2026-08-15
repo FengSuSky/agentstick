@@ -389,7 +389,8 @@ final class AgentStickCoordinator {
         case .idle:
             break
         case .running:
-            ble.sendUIState("task_running", text: "\(snapshot.agent.deviceDisplayName) running")
+            let text = runningText(for: snapshot)
+            ble.sendUIState("task_running", text: text)
         case .completed:
             agentApprovalCenter.finishContinuingRequests()
             playAgentSoundIfEnabled("task_done")
@@ -402,6 +403,20 @@ final class AgentStickCoordinator {
             playAgentSoundIfEnabled("needs_input")
             ble.sendUIState("needs_attention", text: "\(snapshot.agent.deviceDisplayName) needs you")
         }
+    }
+
+    /// Shows what the agent is doing (submitted prompt or current tool) so the
+    /// working animation carries live activity instead of a static caption.
+    /// The device renders ASCII only, so titles that sanitize away to nothing
+    /// (e.g. pure-CJK prompts) fall back to the plain running caption.
+    private func runningText(for snapshot: AgentTaskSnapshot) -> String {
+        let name = snapshot.agent.deviceDisplayName
+        guard let title = snapshot.title?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !title.isEmpty else {
+            return "\(name) running"
+        }
+        let concise = BleProtocol.deviceSafeText(AgentDisplayTitle.from(title, fallback: title, limit: 28))
+        return concise.isEmpty ? "\(name) running" : "\(name) \(concise)"
     }
 
     private func playAgentSoundIfEnabled(_ sound: String, to peripheralID: UUID? = nil) {
@@ -1881,6 +1896,20 @@ private extension AgentKind {
             return "Claude"
         case .codexCLI, .codexDesktop:
             return "Codex"
+        case .workBuddy:
+            return "WorkBuddy"
+        case .codeBuddy:
+            return "CodeBuddy"
+        case .geminiCLI:
+            return "Gemini"
+        case .qwenCode:
+            return "Qwen"
+        case .qoder:
+            return "Qoder"
+        case .factoryCLI:
+            return "Factory"
+        case .cursorCLI:
+            return "Cursor"
         case .unknown:
             return "Agent"
         }

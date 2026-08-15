@@ -14,6 +14,7 @@ public struct AgentHookPayloadMapper {
         var prompt: String?
         var message: String?
         var title: String?
+        var toolName: String?
         var lastAssistantMessage: String?
         var error: String?
 
@@ -25,6 +26,7 @@ public struct AgentHookPayloadMapper {
             case prompt
             case message
             case title
+            case toolName = "tool_name"
             case lastAssistantMessage = "last_assistant_message"
             case error
         }
@@ -38,11 +40,35 @@ public struct AgentHookPayloadMapper {
 
         let normalizedSource = source.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
         let agent: AgentKind
+        let surface: AgentSurface
         switch normalizedSource {
         case "claude":
             agent = .claudeCode
+            surface = .cli
         case "codex":
             agent = .codexCLI
+            surface = .cli
+        case "workbuddy":
+            agent = .workBuddy
+            surface = .desktop
+        case "codebuddy":
+            agent = .codeBuddy
+            surface = .cli
+        case "gemini":
+            agent = .geminiCLI
+            surface = .cli
+        case "qwen":
+            agent = .qwenCode
+            surface = .cli
+        case "qoder":
+            agent = .qoder
+            surface = .cli
+        case "factory":
+            agent = .factoryCLI
+            surface = .cli
+        case "cursor":
+            agent = .cursorCLI
+            surface = .desktop
         default:
             throw AgentHookPayloadError.unsupportedSource(source)
         }
@@ -50,30 +76,35 @@ public struct AgentHookPayloadMapper {
         return AgentTaskEvent(
             kind: kind(for: payload.hookEventName),
             agent: agent,
-            surface: .cli,
+            surface: surface,
             sessionID: sessionID,
             taskID: payload.turnID,
             cwd: payload.cwd,
-            title: payload.title ?? payload.prompt,
+            title: payload.title ?? payload.prompt ?? payload.toolName,
             summary: payload.lastAssistantMessage ?? payload.message ?? payload.error,
             occurredAt: occurredAt
         )
     }
 
     private static func kind(for hookEventName: String) -> AgentTaskEventKind {
-        switch hookEventName {
-        case "SessionStart":
+        // Cursor names its events in lower case ("stop", "beforeSubmitPrompt").
+        switch hookEventName.lowercased() {
+        case "sessionstart":
             return .sessionStarted
-        case "UserPromptSubmit":
+        case "userpromptsubmit", "beforesubmitprompt":
             return .promptSubmitted
-        case "PermissionRequest", "PreToolUse":
+        case "permissionrequest", "pretooluse":
             return .waitingForApproval
-        case "Notification":
+        case "notification":
             return .needsInput
-        case "Stop":
+        case "stop":
             return .completed
-        case "StopFailure", "PostToolUseFailure":
+        case "stopfailure", "posttoolusefailure":
             return .failed
+        case "sessionend":
+            // A closed session means the turn is over; reporting "running"
+            // here would leave the device stuck on the working animation.
+            return .completed
         default:
             return .turnStarted
         }

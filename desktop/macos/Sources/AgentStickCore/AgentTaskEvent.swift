@@ -4,6 +4,13 @@ public enum AgentKind: String, Codable, Sendable, Equatable {
     case claudeCode = "claude_code"
     case codexCLI = "codex_cli"
     case codexDesktop = "codex_desktop"
+    case workBuddy = "work_buddy"
+    case codeBuddy = "code_buddy"
+    case geminiCLI = "gemini_cli"
+    case qwenCode = "qwen_code"
+    case qoder
+    case factoryCLI = "factory_cli"
+    case cursorCLI = "cursor_cli"
     case unknown
 }
 

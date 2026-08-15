@@ -152,6 +152,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         taskCaptureController.start(captureEnabled: config.agentCaptureEnabled)
         self.taskCaptureController = taskCaptureController
+
+        // Auto-configure agent CLI hooks (Claude Code, Codex, WorkBuddy,
+        // Cursor, ...) so external agent tasks reach the device. Idempotent
+        // and fail-open; runs off the main thread.
+        DispatchQueue.global(qos: .utility).async {
+            AgentHookInstaller.installAgentHooksIfNeeded()
+        }
     }
 
     private func updateInputOptions(interactionMode: InteractionMode?, autoEnter: Bool?) {
