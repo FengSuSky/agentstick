@@ -8,6 +8,7 @@
 #if CONFIG_AGENTSTICK_BOARD_LICHUANG_ESP32S3
 
 #define STICK_S3_BOARD_IS_LICHUANG 1
+#define STICK_S3_BOARD_HARDWARE "lichuang_esp32s3"
 
 /* Lichuang ESP32-S3 board pin mapping.
  * Main button: BOOT/USER key = GPIO0 (active-low).
@@ -49,6 +50,7 @@
 #else
 
 #define STICK_S3_BOARD_IS_LICHUANG 0
+#define STICK_S3_BOARD_HARDWARE "m5stack_sticks3"
 
 /* M5Stack StickS3 pin mapping. */
 #define STICK_S3_PIN_BUTTON_FRONT 11

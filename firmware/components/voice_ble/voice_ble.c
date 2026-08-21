@@ -25,6 +25,7 @@
 #include "nimble/nimble_port_freertos.h"
 #include "services/gap/ble_svc_gap.h"
 #include "services/gatt/ble_svc_gatt.h"
+#include "stick_s3_board.h"
 
 static const char *TAG = "voice_ble";
 
@@ -907,14 +908,14 @@ esp_err_t voice_ble_send_device_info(void)
     const char *version = app_desc ? app_desc->version : "unknown";
     char json[384];
     snprintf(json, sizeof(json),
-             "{\"event\":\"device_info\",\"hardware\":\"stick_s3\","
+             "{\"event\":\"device_info\",\"hardware\":\"%s\","
              "\"firmware_version\":\"%s\","
              "\"buttons\":[\"primary\",\"secondary\"],"
              "\"interaction_modes\":[\"hold_to_talk\",\"click_to_talk\"],"
              "\"ui_states\":[\"ready\",\"recording\",\"transcribing\",\"thinking\","
              "\"task_running\",\"pending_confirmation\",\"needs_attention\",\"notification\","
              "\"error\"]}",
-             version);
+             STICK_S3_BOARD_HARDWARE, version);
     return send_state_json(json);
 }
 

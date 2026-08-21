@@ -1,0 +1,8 @@
+# Name,   Type, SubType, Offset,   Size,     Flags
+# M5Stack StickS3 has 8 MB flash. Reserve the available flash for two 4 MB
+# firmware slots so BLE OTA remains available; this target has no SPIFFS area.
+nvs,      data, nvs,     0x9000,   0x4000,
+otadata,  data, ota,     0xd000,   0x2000,
+phy_init, data, phy,     0xf000,   0x1000,
+ota_0,    app,  ota_0,   0x10000,  0x3f0000,
+ota_1,    app,  ota_1,   0x400000, 0x400000,
