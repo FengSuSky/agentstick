@@ -68,13 +68,28 @@ for ARCH in $TARGET_ARCHS; do
     echo ""
     echo "Building AgentStickApp for $ARCH..."
     SCRATCH="$DESKTOP_DIR/.build-$ARCH"
-    rm -rf "$SCRATCH"
+    if [ "${AGENTSTICK_CLEAN_BUILD:-1}" = "1" ]; then
+        rm -rf "$SCRATCH"
+    fi
     swift build \
         --package-path "$DESKTOP_DIR" \
         -c "$SWIFT_CONFIG" \
         --arch "$ARCH" \
         --scratch-path "$SCRATCH"
 done
+
+# SwiftPM moved build products from "<scratch>/<arch>-apple-macosx/<config>" to
+# "<scratch>/out/Products/<Config>" around Swift 6.1. Resolve both so packaging
+# never copies a stale executable left behind by an older toolchain.
+CONFIG_DIR="$(printf '%s' "$SWIFT_CONFIG" | awk '{print toupper(substr($0, 1, 1)) substr($0, 2)}')"
+resolve_product() {
+    local arch="$1" name="$2"
+    local legacy="$DESKTOP_DIR/.build-$arch/$arch-apple-macosx/$SWIFT_CONFIG/$name"
+    local modern="$DESKTOP_DIR/.build-$arch/out/Products/$CONFIG_DIR/$name"
+    if [ ! -f "$legacy" ]; then echo "$modern"; return; fi
+    if [ ! -f "$modern" ]; then echo "$legacy"; return; fi
+    if [ "$modern" -nt "$legacy" ]; then echo "$modern"; else echo "$legacy"; fi
+}
 
 APP_DIR="$BUILD_DIR/AgentStick-${VERSION}.app"
 rm -rf "$APP_DIR"
@@ -83,7 +98,7 @@ mkdir -p "$APP_DIR/Contents/MacOS" "$APP_DIR/Contents/Helpers" "$APP_DIR/Content
 echo ""
 ARCH_BINARIES=()
 for ARCH in $TARGET_ARCHS; do
-    ARCH_BINARIES+=("$DESKTOP_DIR/.build-$ARCH/$ARCH-apple-macosx/$SWIFT_CONFIG/AgentStickApp")
+    ARCH_BINARIES+=("$(resolve_product "$ARCH" AgentStickApp)")
 done
 if [ "${#ARCH_BINARIES[@]}" -eq 1 ]; then
     echo "Copying $TARGET_ARCHS executable..."
@@ -96,7 +111,7 @@ fi
 echo "Bundling Agent approval hook helper..."
 HOOK_BINARIES=()
 for ARCH in $TARGET_ARCHS; do
-    HOOK_BINARIES+=("$DESKTOP_DIR/.build-$ARCH/$ARCH-apple-macosx/$SWIFT_CONFIG/AgentStickHooks")
+    HOOK_BINARIES+=("$(resolve_product "$ARCH" AgentStickHooks)")
 done
 if [ "${#HOOK_BINARIES[@]}" -eq 1 ]; then
     cp "${HOOK_BINARIES[0]}" "$APP_DIR/Contents/Helpers/AgentStickHooks"
