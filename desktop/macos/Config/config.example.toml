@@ -30,7 +30,7 @@ translation_target = "en"
 # Text Paste -> Agent Run. On Lichuang, use the macOS menu to switch.
 # Set [output].target to "agent_cli" to start in Agent Run mode.
 [agent]
-default = "claude" # or "codex" / "imessage" / "workbuddy"
+default = "claude" # or "codex" / "imessage"
 cwd = "~/work/my-project"
 timeout_seconds = 600
 
@@ -46,21 +46,6 @@ type = "codex_exec"
 [agents.imessage]
 type = "imessage"
 recipient = "remote-agent@example.com"
-
-# Send the task to the WorkBuddy client signed in on this Mac. The task runs locally
-# and the device is alerted when it finishes.
-# client_secret is never written here; paste it once in Settings and it goes to the Keychain.
-# The OAuth callback URL registered on the open platform must be exactly:
-#   http://localhost:8799/oauth/callback
-[agents.workbuddy]
-type = "workbuddy_local"
-# Optional override; omitted or empty uses AgentStick’s built-in developer application.
-# client_id = "your_workbuddy_client_id"
-# Wait this long after the last WorkBuddy message before treating the reply as final.
-settle_seconds = 15
-# Only needed when the platform registered a different loopback callback.
-# Must match the open platform entry byte for byte; localhost and 127.0.0.1 are not equal.
-# redirect_uri = "http://localhost:8799/oauth/callback"
 
 # Optional per-device output overrides:
 # [device.C3D8.output]

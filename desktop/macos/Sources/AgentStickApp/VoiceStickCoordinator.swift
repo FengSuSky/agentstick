@@ -425,12 +425,13 @@ final class AgentStickCoordinator {
             AgentDebugLog.write("sound \(sound) suppressed alerts disabled")
             return
         }
-        let delivered = ble.playSound(sound, to: peripheralID)
-        // A task can outlive the device connection it started on. Rather than losing the
-        // alert, fall back to a system sound so the user still hears that it finished.
-        guard !delivered else { return }
-        AgentDebugLog.write("sound \(sound) no device reached, local fallback")
-        NSSound(named: NSSound.Name(Self.localFallbackSoundName(for: sound)))?.play()
+        ble.playSound(sound, to: peripheralID) { delivered in
+            // Wait for the BLE write to be confirmed. Returning true at submit time
+            // skipped this fallback when the device dropped the packet or disconnected.
+            guard !delivered else { return }
+            AgentDebugLog.write("sound \(sound) no device reached, local fallback")
+            NSSound(named: NSSound.Name(Self.localFallbackSoundName(for: sound)))?.play()
+        }
     }
 
     private static func localFallbackSoundName(for sound: String) -> String {

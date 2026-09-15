@@ -456,10 +456,7 @@ struct AppConfig {
                     type: AgentCLIType(rawValue: definition.type ?? "") ?? definitions[normalizedName]?.type ?? .generic,
                     command: definition.command ?? definitions[normalizedName]?.command,
                     arguments: definition.args ?? definitions[normalizedName]?.arguments ?? [],
-                    recipient: definition.recipient ?? definitions[normalizedName]?.recipient,
-                    clientID: definition.client_id ?? definitions[normalizedName]?.clientID,
-                    settleSeconds: definition.settle_seconds ?? definitions[normalizedName]?.settleSeconds,
-                    redirectURI: definition.redirect_uri ?? definitions[normalizedName]?.redirectURI
+                    recipient: definition.recipient ?? definitions[normalizedName]?.recipient
                 )
             }
         }
@@ -626,15 +623,6 @@ struct AppConfig {
                 if let recipient = definition.recipient, !recipient.isEmpty {
                     lines.append("recipient = \"\(recipient.tomlEscaped)\"")
                 }
-                if let clientID = definition.clientID, !clientID.isEmpty {
-                    lines.append("client_id = \"\(clientID.tomlEscaped)\"")
-                }
-                if let settleSeconds = definition.settleSeconds {
-                    lines.append("settle_seconds = \(settleSeconds)")
-                }
-                if let redirectURI = definition.redirectURI, !redirectURI.isEmpty {
-                    lines.append("redirect_uri = \"\(redirectURI.tomlEscaped)\"")
-                }
                 return lines.joined(separator: "\n")
             }
             .joined(separator: "\n")
@@ -697,9 +685,6 @@ private struct AgentDefinitionConfigFile: Decodable {
     var command: String?
     var args: [String]?
     var recipient: String?
-    var client_id: String?
-    var settle_seconds: Int?
-    var redirect_uri: String?
 }
 
 private extension Bool {
