@@ -128,7 +128,13 @@ final class WorkBuddyAuthStore {
     func saveClientSecret(_ secret: String, forClientID clientID: String) throws {
         try queue.sync {
             var current = loadIfNeeded()
-            current.clientID = WorkBuddyAppCredentials.effectiveClientID(clientID)
+            let newID = WorkBuddyAppCredentials.effectiveClientID(clientID)
+            // Switching applications invalidates any existing token: the old grant
+            // belongs to a different app and cannot be refreshed with the new secret.
+            if !current.clientID.isEmpty && current.clientID != newID {
+                current.token = nil
+            }
+            current.clientID = newID
             current.clientSecret = secret
             try persist(current)
         }
@@ -139,7 +145,11 @@ final class WorkBuddyAuthStore {
         if id == WorkBuddyAppCredentials.clientID {
             return WorkBuddyAppCredentials.clientSecret
         }
-        return queue.sync { loadIfNeeded().clientSecret }
+        return queue.sync {
+            let current = loadIfNeeded()
+            guard current.clientID == id else { return nil }
+            return current.clientSecret
+        }
     }
 
     func saveToken(_ token: WorkBuddyOAuthToken, clientID: String) throws {
@@ -156,7 +166,12 @@ final class WorkBuddyAuthStore {
         return queue.sync {
             let current = loadIfNeeded()
             guard current.clientID.isEmpty || current.clientID == id else { return nil }
-            return current.token
+            guard let token = current.token else { return nil }
+            // Double-check the token itself: a bug during migration or manual
+            // file edit could leave a token whose embedded clientID disagrees
+            // with the record-level one.
+            guard token.clientID.isEmpty || token.clientID == id else { return nil }
+            return token
         }
     }
 

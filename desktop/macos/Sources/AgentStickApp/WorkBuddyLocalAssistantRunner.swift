@@ -16,6 +16,10 @@ final class WorkBuddyLocalAssistantRunner {
     private static let pollIntervalSeconds: TimeInterval = 2
     /// Upper bound on how long we wait for the user to answer a single request.
     private static let maxInteractionWaitSeconds: TimeInterval = 900
+    /// Exit code used when the task produced output but at least one approval or
+    /// question went unanswered. The text is preserved so the caller can display
+    /// it, but `succeeded` returns false so the UI does not play a success sound.
+    static let exitCodePendingApproval: Int32 = 2
 
     private let baseURL = URL(string: "https://www.workbuddy.cn/openapi/v2")!
     private let auth = WorkBuddyAuthController()
@@ -66,7 +70,8 @@ final class WorkBuddyLocalAssistantRunner {
                             interaction,
                             task: task,
                             deadline: deadline,
-                            token: currentToken.accessToken,
+                            clientID: clientID,
+                            clientSecret: clientSecret,
                             approvalHandler: approvalHandler,
                             inputHandler: inputHandler
                         )
@@ -115,7 +120,8 @@ final class WorkBuddyLocalAssistantRunner {
         _ interaction: WorkBuddyInteraction,
         task: AgentCLITask,
         deadline: Date,
-        token: String,
+        clientID: String,
+        clientSecret: String,
         approvalHandler: CodexInteractiveRunner.ApprovalHandler?,
         inputHandler: CodexInteractiveRunner.InputHandler?
     ) -> Bool {
@@ -135,7 +141,12 @@ final class WorkBuddyLocalAssistantRunner {
                 NSLog("WorkBuddy: question \(interaction.requestId) went unanswered")
                 return false
             }
-            return postResponse(requestId: interaction.requestId, outcome: WorkBuddyInteractionPayload.selectedOutcome, answers: answers, token: token)
+            // Refresh the token: the user may have taken minutes to answer.
+            guard let freshToken = try? auth.validToken(clientID: clientID, clientSecret: clientSecret) else {
+                NSLog("WorkBuddy: token refresh failed before posting question response \(interaction.requestId)")
+                return false
+            }
+            return postResponse(requestId: interaction.requestId, outcome: WorkBuddyInteractionPayload.selectedOutcome, answers: answers, token: freshToken.accessToken)
         }
 
         guard let approvalHandler else { logUnhandled(interaction); return false }
@@ -149,8 +160,13 @@ final class WorkBuddyLocalAssistantRunner {
             NSLog("WorkBuddy: approval \(interaction.requestId) went unanswered")
             return false
         }
+        // Refresh the token: the user may have taken minutes to approve.
+        guard let freshToken = try? auth.validToken(clientID: clientID, clientSecret: clientSecret) else {
+            NSLog("WorkBuddy: token refresh failed before posting approval response \(interaction.requestId)")
+            return false
+        }
         let outcome = allowed ? WorkBuddyInteractionPayload.allowOutcome : WorkBuddyInteractionPayload.denyOutcome
-        return postResponse(requestId: interaction.requestId, outcome: outcome, answers: [:], token: token)
+        return postResponse(requestId: interaction.requestId, outcome: outcome, answers: [:], token: freshToken.accessToken)
     }
 
     private func waitForApproval(
@@ -244,15 +260,16 @@ final class WorkBuddyLocalAssistantRunner {
 
     private func makeResult(task: AgentCLITask, output: String, permissionPending: Bool) -> AgentCLIResult {
         let text = permissionPending ? output + Self.permissionNotice : output
+        let code = permissionPending ? Self.exitCodePendingApproval : 0
         let resultURL = (try? AgentCLIRunner.writeResultFile(
             task: task,
-            exitCode: 0,
+            exitCode: code,
             stdout: text,
             stderr: ""
         )) ?? AppConfig.configDirectory
         return AgentCLIResult(
             task: task,
-            exitCode: 0,
+            exitCode: code,
             stdout: text,
             stderr: "",
             resultURL: resultURL

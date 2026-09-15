@@ -95,6 +95,12 @@ final class SettingsWindowController: NSWindowController {
             name: NSControl.textDidChangeNotification,
             object: apiKeyField
         )
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(workBuddyClientIDDidChange),
+            name: NSControl.textDidChangeNotification,
+            object: workBuddyClientIDField
+        )
     }
 
     required init?(coder: NSCoder) {
@@ -424,11 +430,15 @@ final class SettingsWindowController: NSWindowController {
 
 
     private func updateWorkBuddyStatus() {
+        let clientID = WorkBuddyAppCredentials.effectiveClientID(workBuddyClientIDField.stringValue)
+        // Load first so a read failure from this very call is not missed by an
+        // earlier storageError() check that reflects a previous operation.
+        let token = WorkBuddyAuthStore.shared.loadToken(clientID: clientID)
         if let error = WorkBuddyAuthStore.shared.storageError() {
             workBuddyStatusLabel.stringValue = currentLanguage == .chinese
                 ? "存储异常：\(error)" : "Storage error: \(error)"
             workBuddyStatusLabel.textColor = .systemRed
-        } else if WorkBuddyAuthStore.shared.loadToken() != nil {
+        } else if token != nil {
             workBuddyStatusLabel.stringValue = currentLanguage == .chinese
                 ? "已授权" : "Authorized"
             workBuddyStatusLabel.textColor = .systemGreen
@@ -647,6 +657,10 @@ final class SettingsWindowController: NSWindowController {
 
     @objc private func apiKeyFieldDidChange() {
         updateApplyTrialButton()
+    }
+
+    @objc private func workBuddyClientIDDidChange() {
+        updateWorkBuddyStatus()
     }
 
     @objc private func deviceSoundVolumeChanged() {
