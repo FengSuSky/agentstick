@@ -31,7 +31,7 @@ AgentStick 想解决的问题不是单纯语音输入，而是让桌面 Agent �
 - 设备按键触发录音，麦克风音频经 Opus 编码后通过 BLE 发送。
 - macOS 桌面端可以接收音频、调用 ASR，并显示识别结果。
 - macOS 桌面端可以把文本粘贴到当前应用。
-- macOS 桌面端可以把识别出的任务直接交给 Claude Code 或 Codex CLI，并把执行结果保存到本地。
+- macOS 桌面端可以把识别出的任务直接交给 Claude Code、Codex CLI 或 WorkBuddy，并把执行结果保存到本地。
 - Agent 运行中、完成、失败和等待确认状态可以回写到设备屏幕，并支持声音提醒。
 - 已适配立创·实战派 ESP32-S3 开发板。
 - 已验证火山引擎 ASR 配置和 macOS 本地打包流程。
@@ -56,6 +56,10 @@ AgentStick 想解决的问题不是单纯语音输入，而是让桌面 Agent �
 Agent Run 会在同一 Agent 和工程目录下自动识别承接语句与任务相似度，决定新建或恢复 Claude session / Codex thread。语音以“新会话”开头可强制新建，以“继续会话”开头可强制接续最近会话；“清空历史”也会清除本地会话续接索引。
 
 开启“长期记忆”后，AgentStick 会从“记住、以后、我偏好、这个项目默认”等明确表达中保存稳定习惯和项目上下文，并在后续 Claude/Codex 任务中提供相关记忆。设置页可查看或清除记忆；API Key、密码等敏感内容和完整对话原文不会被自动保存。
+
+### 派发任务到 WorkBuddy
+
+AgentStick 也可以把语音任务转发给 WorkBuddy。开发者 Client ID 与 Client Secret 已内置。普通用户在设置页选择 WorkBuddy、保存设置，再点击「连接 WorkBuddy」完成个人授权，无需申请开放平台应用。任务会在本机已登录的 WorkBuddy 中执行；工具授权与提问会显示在任务历史窗口，任务完成后设备会收到提醒。Client ID 与 Secret 需要开放平台的硬件接入应用审核通过后才生效。OAuth Scope、回调地址与审核注意事项见 `docs/workbuddy-integration.md`。
 
 执行结果保存在 `~/Library/Application Support/AgentStick/Tasks/`。App 会自动搜索 Homebrew、NVM、Volta、Bun 等常见安装位置，也会识别 Codex.app 或 ChatGPT.app 内置的 Codex CLI。自定义 CLI 命令仍可通过 `config.toml` 的 `[agents.*]` 配置。
 
@@ -219,6 +223,7 @@ AgentStick 目前直接参考并继承 VoiceStick 的工程结构和大量基础
 - `docs/volcengine-asr.md`：火山引擎 ASR 对接笔记
 - `docs/lichuang-esp32s3-xiaozhi-notes.md`：立创 ESP32-S3 硬件和 xiaozhi 参考记录
 - `docs/lichuang-local-adaptation-summary.md`：本地立创板适配整理
+- `docs/workbuddy-integration.md`：WorkBuddy 开放平台接入（OAuth、本地助理 API、ACP、审批中继）
 - `docs/release.md`：macOS、Windows、固件和网站发布流程
 - `desktop/windows/README.md`：Windows 端构建说明
 - `website/README.md`：网站和 appcast 说明

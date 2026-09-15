@@ -421,8 +421,24 @@ final class AgentStickCoordinator {
     }
 
     private func playAgentSoundIfEnabled(_ sound: String, to peripheralID: UUID? = nil) {
-        guard config.agentSoundAlertsEnabled else { return }
-        ble.playSound(sound, to: peripheralID)
+        guard config.agentSoundAlertsEnabled else {
+            AgentDebugLog.write("sound \(sound) suppressed alerts disabled")
+            return
+        }
+        let delivered = ble.playSound(sound, to: peripheralID)
+        // A task can outlive the device connection it started on. Rather than losing the
+        // alert, fall back to a system sound so the user still hears that it finished.
+        guard !delivered else { return }
+        AgentDebugLog.write("sound \(sound) no device reached, local fallback")
+        NSSound(named: NSSound.Name(Self.localFallbackSoundName(for: sound)))?.play()
+    }
+
+    private static func localFallbackSoundName(for sound: String) -> String {
+        switch sound {
+        case "task_done": return "Glass"
+        case "needs_input": return "Ping"
+        default: return "Basso"
+        }
     }
 
     func showAgentTaskHistory() {
@@ -1401,6 +1417,7 @@ final class AgentStickCoordinator {
     }
 
     private func runAgentCLI(text: String, peripheralID: UUID?) {
+        AgentDebugLog.write("run start agent=\(config.agentConfig.defaultAgent) device=\(peripheralID?.uuidString.prefix(8) ?? "none")")
         agentRunner.run(
             prompt: text,
             config: config.agentConfig,
@@ -1408,48 +1425,55 @@ final class AgentStickCoordinator {
             memoryEnabled: config.agentMemoryEnabled,
             approvalHandler: { [weak self] agent, kind, _, details, reply in
                 guard let self else { reply(false); return }
-                self.playAgentSoundIfEnabled("needs_input", to: peripheralID)
-                if let peripheralID {
-                    self.ble.sendUIState("needs_attention", text: "\(agent) needs approval", to: peripheralID)
-                }
-                self.agentApprovalCenter.submit(agent: agent, kind: kind, summary: text, details: details) { [weak self] allowed in
-                    reply(allowed)
+                // Runners call this from their own queue. CoreBluetooth and AppKit both
+                // belong on the main queue, so the alert and the approval window are
+                // scheduled there instead of being fired from the runner's thread.
+                DispatchQueue.main.async {
+                    self.playAgentSoundIfEnabled("needs_input", to: peripheralID)
                     if let peripheralID {
-                        self?.ble.sendUIState("task_running", text: allowed ? "Approval allowed" : "Approval denied", to: peripheralID)
+                        self.ble.sendUIState("needs_attention", text: "\(agent) needs approval", to: peripheralID)
+                    }
+                    self.agentApprovalCenter.submit(agent: agent, kind: kind, summary: text, details: details) { [weak self] allowed in
+                        reply(allowed)
+                        if let peripheralID {
+                            self?.ble.sendUIState("task_running", text: allowed ? "Approval allowed" : "Approval denied", to: peripheralID)
+                        }
                     }
                 }
             },
             inputHandler: { [weak self] agent, _, details, questions, reply in
                 guard let self else { reply(nil); return }
-                self.playAgentSoundIfEnabled("needs_input", to: peripheralID)
-                if let peripheralID {
-                    self.ble.sendUIState("needs_attention", text: "\(agent) needs input", to: peripheralID)
-                }
-                var submittedRequest: AgentInputRequest?
-                submittedRequest = self.agentApprovalCenter.submitInput(
-                    agent: agent,
-                    summary: text,
-                    details: details,
-                    questions: questions
-                ) { [weak self] answers in
-                    if self?.pendingAgentVoiceInputRequest?.id == submittedRequest?.id {
-                        self?.clearPendingAgentVoiceInput()
-                    }
-                    reply(answers)
+                DispatchQueue.main.async {
+                    self.playAgentSoundIfEnabled("needs_input", to: peripheralID)
                     if let peripheralID {
-                        self?.ble.sendUIState("task_running", text: answers == nil ? "Input cancelled" : "Answer received", to: peripheralID)
+                        self.ble.sendUIState("needs_attention", text: "\(agent) needs input", to: peripheralID)
                     }
-                }
-                if let request = submittedRequest,
-                   questions.count == 1,
-                   let question = questions.first,
-                   question.options.isEmpty,
-                   question.allowsFreeText,
-                   !question.isSecret,
-                   peripheralID != nil {
-                    self.pendingAgentVoiceInputRequest = request
-                    self.pendingAgentVoiceQuestionID = question.id
-                    self.pendingAgentVoicePeripheralID = peripheralID
+                    var submittedRequest: AgentInputRequest?
+                    submittedRequest = self.agentApprovalCenter.submitInput(
+                        agent: agent,
+                        summary: text,
+                        details: details,
+                        questions: questions
+                    ) { [weak self] answers in
+                        if self?.pendingAgentVoiceInputRequest?.id == submittedRequest?.id {
+                            self?.clearPendingAgentVoiceInput()
+                        }
+                        reply(answers)
+                        if let peripheralID {
+                            self?.ble.sendUIState("task_running", text: answers == nil ? "Input cancelled" : "Answer received", to: peripheralID)
+                        }
+                    }
+                    if let request = submittedRequest,
+                       questions.count == 1,
+                       let question = questions.first,
+                       question.options.isEmpty,
+                       question.allowsFreeText,
+                       !question.isSecret,
+                       peripheralID != nil {
+                        self.pendingAgentVoiceInputRequest = request
+                        self.pendingAgentVoiceQuestionID = question.id
+                        self.pendingAgentVoicePeripheralID = peripheralID
+                    }
                 }
             }
         ) { [weak self] result in
@@ -1458,6 +1482,7 @@ final class AgentStickCoordinator {
             self.agentApprovalCenter.finishContinuingRequests()
             switch result {
             case .success(let agentResult):
+                AgentDebugLog.write("run finished exit=\(agentResult.exitCode) device=\(peripheralID?.uuidString.prefix(8) ?? "none")")
                 if let peripheralID {
                     if agentResult.succeeded {
                         self.playAgentSoundIfEnabled("task_done", to: peripheralID)
@@ -1470,6 +1495,7 @@ final class AgentStickCoordinator {
                 self.sendAgentCompletionNotification(for: agentResult)
                 self.presentAgentResult(agentResult)
             case .failure(let error):
+                AgentDebugLog.write("run failed error=\(error.localizedDescription) device=\(peripheralID?.uuidString.prefix(8) ?? "none")")
                 if let peripheralID {
                     self.playAgentSoundIfEnabled("task_failed", to: peripheralID)
                     self.ble.sendUIState("error", text: "Agent failed", to: peripheralID)

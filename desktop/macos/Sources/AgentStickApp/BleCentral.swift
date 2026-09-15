@@ -162,24 +162,44 @@ final class BleCentral: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate
         }
     }
 
-    func playSound(_ sound: String, to peripheralID: UUID? = nil) {
+    /// Plays a tone on the device and reports whether it reached one.
+    ///
+    /// Written with `.withResponse` unlike the UI state updates: a dropped alert is a real
+    /// failure (the user never learns the task finished), while a dropped caption is not.
+    /// When the device that started the task is gone, the tone is sent to whatever AgentStick
+    /// is still connected to, so the result is `true` only if some device actually got it.
+    @discardableResult
+    func playSound(_ sound: String, to peripheralID: UUID? = nil) -> Bool {
         let data = BleProtocol.playSoundPayload(sound)
         if let peripheralID {
             if let characteristic = controlCharacteristics[peripheralID],
                let peripheral = peripherals[peripheralID] {
                 let deviceID = connectedDevices[peripheralID]?.deviceID ?? "unknown"
                 NSLog("BLE play_sound sound=\(sound) dev=VS-\(deviceID)")
-                peripheral.writeValue(data, for: characteristic, type: .withoutResponse)
-            } else {
-                NSLog("BLE play_sound skipped missing connection sound=\(sound) id=\(peripheralID)")
+                AgentDebugLog.write("play_sound \(sound) dev=VS-\(deviceID)")
+                peripheral.writeValue(data, for: characteristic, type: .withResponse)
+                return true
             }
-            return
+            NSLog("BLE play_sound skipped missing connection sound=\(sound) id=\(peripheralID)")
+            AgentDebugLog.write("play_sound \(sound) skipped no connection id=\(peripheralID)")
+            return broadcastSound(data, sound: sound)
         }
 
+        return broadcastSound(data, sound: sound)
+    }
+
+    @discardableResult
+    private func broadcastSound(_ data: Data, sound: String) -> Bool {
         NSLog("BLE play_sound broadcast sound=\(sound) targets=\(controlCharacteristics.count)")
+        var delivered = false
         for (id, characteristic) in controlCharacteristics {
-            peripherals[id]?.writeValue(data, for: characteristic, type: .withoutResponse)
+            guard let peripheral = peripherals[id] else { continue }
+            let deviceID = connectedDevices[id]?.deviceID ?? "unknown"
+            AgentDebugLog.write("play_sound \(sound) broadcast dev=VS-\(deviceID)")
+            peripheral.writeValue(data, for: characteristic, type: .withResponse)
+            delivered = true
         }
+        return delivered
     }
 
     func sendSoundVolume(_ volume: Int, to peripheralID: UUID? = nil) {
