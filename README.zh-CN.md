@@ -59,6 +59,12 @@ Agent Run 会在同一 Agent 和工程目录下自动识别承接语句与任务
 
 执行结果保存在 `~/Library/Application Support/AgentStick/Tasks/`。App 会自动搜索 Homebrew、NVM、Volta、Bun 等常见安装位置，也会识别 Codex.app 或 ChatGPT.app 内置的 Codex CLI。自定义 CLI 命令仍可通过 `config.toml` 的 `[agents.*]` 配置。
 
+### 通过 iMessage 调度远程 Agent
+
+将 `[agent]` 的 `default` 设置为 `imessage`，并在 `[agents.imessage]` 中填写远程 Agent 的 iMessage 邮箱或手机号。AgentStick 会通过 macOS“信息”发送任务，收到该联系人携带相同 `[AgentStick:XXXXXXXX]` 标记的回复后，保存任务结果、弹出桌面通知，并提醒已连接的设备。示例见 `desktop/macos/Config/config.example.toml`。
+
+首次发送时，需要在系统设置中允许 AgentStick 自动化控制“信息”；为了读取回复，还需要在“系统设置 → 隐私与安全性 → 完全磁盘访问”中允许 AgentStick。远程 Agent 应保留请求里的标记再回复结果，以避免把同一联系人其他聊天误认成任务回执。
+
 ## 架构草图
 
 ```text

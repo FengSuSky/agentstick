@@ -1,6 +1,7 @@
 import AppKit
 import AgentStickCore
 import Foundation
+import UserNotifications
 
 final class AgentStickCoordinator {
     private enum PendingPasteState {
@@ -1466,6 +1467,7 @@ final class AgentStickCoordinator {
                         self.ble.sendUIState("error", text: "\(agentResult.task.agentName.capitalized) failed", to: peripheralID)
                     }
                 }
+                self.sendAgentCompletionNotification(for: agentResult)
                 self.presentAgentResult(agentResult)
             case .failure(let error):
                 if let peripheralID {
@@ -1836,6 +1838,21 @@ final class AgentStickCoordinator {
 
     private func presentAgentResult(_ result: AgentCLIResult) {
         agentTaskHistoryController.show(selecting: result.resultURL)
+    }
+
+    private func sendAgentCompletionNotification(for result: AgentCLIResult) {
+        let center = UNUserNotificationCenter.current()
+        center.requestAuthorization(options: [.alert, .sound]) { _, _ in }
+        let content = UNMutableNotificationContent()
+        content.title = result.succeeded
+            ? (currentLanguage == .chinese ? "Agent 任务已完成" : "Agent task completed")
+            : (currentLanguage == .chinese ? "Agent 任务失败" : "Agent task failed")
+        let response = result.displayText.trimmingCharacters(in: .whitespacesAndNewlines)
+        content.body = response.isEmpty
+            ? result.task.prompt
+            : String(response.prefix(180))
+        content.sound = .default
+        center.add(UNNotificationRequest(identifier: UUID().uuidString, content: content, trigger: nil))
     }
 
     private func presentAgentError(_ error: Error, prompt: String) {

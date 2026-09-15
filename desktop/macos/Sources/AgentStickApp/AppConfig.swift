@@ -455,7 +455,8 @@ struct AppConfig {
                 definitions[normalizedName] = AgentCLIDefinition(
                     type: AgentCLIType(rawValue: definition.type ?? "") ?? definitions[normalizedName]?.type ?? .generic,
                     command: definition.command ?? definitions[normalizedName]?.command,
-                    arguments: definition.args ?? definitions[normalizedName]?.arguments ?? []
+                    arguments: definition.args ?? definitions[normalizedName]?.arguments ?? [],
+                    recipient: definition.recipient ?? definitions[normalizedName]?.recipient
                 )
             }
         }
@@ -619,6 +620,9 @@ struct AppConfig {
                         .joined(separator: ", ")
                     lines.append("args = [\(args)]")
                 }
+                if let recipient = definition.recipient, !recipient.isEmpty {
+                    lines.append("recipient = \"\(recipient.tomlEscaped)\"")
+                }
                 return lines.joined(separator: "\n")
             }
             .joined(separator: "\n")
@@ -680,6 +684,7 @@ private struct AgentDefinitionConfigFile: Decodable {
     var type: String?
     var command: String?
     var args: [String]?
+    var recipient: String?
 }
 
 private extension Bool {

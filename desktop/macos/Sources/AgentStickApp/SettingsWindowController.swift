@@ -14,6 +14,7 @@ final class SettingsWindowController: NSWindowController {
     private let agentPopup = NSPopUpButton()
     private let agentWorkingDirectoryField = NSTextField()
     private let agentTimeoutField = NSTextField()
+    private let iMessageRecipientField = NSTextField()
     private let agentSoundAlertsButton = NSButton(
         checkboxWithTitle: currentLanguage == .chinese ? "任务结束时在设备播放提示音" : "Play task alerts on device",
         target: nil,
@@ -148,6 +149,16 @@ final class SettingsWindowController: NSWindowController {
         stack.addArrangedSubview(row(
             label: currentLanguage == .chinese ? "超时（秒）" : "Timeout (sec)",
             control: agentTimeoutField
+        ))
+        iMessageRecipientField.placeholderString = currentLanguage == .chinese ? "邮箱或手机号" : "Email address or phone number"
+        stack.addArrangedSubview(row(
+            label: currentLanguage == .chinese ? "iMessage 联系人" : "iMessage Contact",
+            control: iMessageRecipientField
+        ))
+        stack.addArrangedSubview(hintRow(
+            currentLanguage == .chinese
+                ? "选择 iMessage Remote Agent 后，任务会发送给此联系人；对方回复时需保留任务标记。"
+                : "When iMessage Remote Agent is selected, tasks go to this contact; replies must retain the task tag."
         ))
         stack.addArrangedSubview(hintRow(
             currentLanguage == .chinese
@@ -330,6 +341,8 @@ final class SettingsWindowController: NSWindowController {
                 agentPopup.addItem(withTitle: "Claude Code")
             case "codex":
                 agentPopup.addItem(withTitle: "Codex")
+            case "imessage":
+                agentPopup.addItem(withTitle: "iMessage Remote Agent")
             default:
                 agentPopup.addItem(withTitle: name)
             }
@@ -355,6 +368,7 @@ final class SettingsWindowController: NSWindowController {
         }
         agentWorkingDirectoryField.stringValue = config.agentConfig.workingDirectory.path
         agentTimeoutField.stringValue = String(config.agentConfig.timeoutSeconds)
+        iMessageRecipientField.stringValue = config.agentConfig.definition(for: "imessage")?.recipient ?? ""
         agentSoundAlertsButton.state = config.agentSoundAlertsEnabled ? .on : .off
         agentBypassApprovalsButton.state = config.agentBypassApprovals ? .on : .off
         agentMemoryButton.state = config.agentMemoryEnabled ? .on : .off
@@ -486,11 +500,15 @@ final class SettingsWindowController: NSWindowController {
             )
             return
         }
+        var agentDefinitions = config.agentConfig.agents
+        var iMessageDefinition = agentDefinitions["imessage"] ?? AgentCLIDefinition(type: .iMessage)
+        iMessageDefinition.recipient = iMessageRecipientField.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
+        agentDefinitions["imessage"] = iMessageDefinition
         let agentConfig = AgentCLIConfig(
             defaultAgent: agentName,
             workingDirectory: agentDirectory,
             timeoutSeconds: timeoutSeconds,
-            agents: config.agentConfig.agents
+            agents: agentDefinitions
         )
 
         config = AppConfig(

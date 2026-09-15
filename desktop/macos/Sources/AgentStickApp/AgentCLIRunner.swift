@@ -5,6 +5,7 @@ import Foundation
 enum AgentCLIType: String {
     case codexExec = "codex_exec"
     case claudePrint = "claude_print"
+    case iMessage = "imessage"
     case generic = "generic"
 }
 
@@ -12,11 +13,14 @@ struct AgentCLIDefinition: Equatable {
     var type: AgentCLIType
     var command: String?
     var arguments: [String]
+    /// iMessage address (email address or phone number) for a remote agent.
+    var recipient: String?
 
-    init(type: AgentCLIType, command: String? = nil, arguments: [String] = []) {
+    init(type: AgentCLIType, command: String? = nil, arguments: [String] = [], recipient: String? = nil) {
         self.type = type
         self.command = command
         self.arguments = arguments
+        self.recipient = recipient
     }
 }
 
@@ -32,7 +36,8 @@ struct AgentCLIConfig: Equatable {
         timeoutSeconds: 600,
         agents: [
             "claude": AgentCLIDefinition(type: .claudePrint),
-            "codex": AgentCLIDefinition(type: .codexExec)
+            "codex": AgentCLIDefinition(type: .codexExec),
+            "imessage": AgentCLIDefinition(type: .iMessage)
         ]
     )
 
@@ -107,6 +112,11 @@ struct AgentCLICommand {
             (resumeSessionID.map { ["--resume", $0] } ?? []) + [
                 task.prompt
             ]
+        case .iMessage:
+            // iMessage does not launch a command. AgentCLIRunner routes it to
+            // IMessageAgentRunner before a command is constructed.
+            executable = ""
+            arguments = []
         case .generic:
             executable = definition.command ?? task.agentName
             arguments = definition.arguments.map {
@@ -225,6 +235,19 @@ final class AgentCLIRunner {
             ) { [weak self] result in
                 self?.codexRuns.removeValue(forKey: identifier)
                 completion(result)
+            }
+            return
+        }
+        if definition.type == .iMessage {
+            DispatchQueue.global(qos: .userInitiated).async {
+                let result = IMessageAgentRunner().run(
+                    task: task,
+                    recipient: definition.recipient ?? "",
+                    timeoutSeconds: config.timeoutSeconds
+                )
+                DispatchQueue.main.async {
+                    completion(result)
+                }
             }
             return
         }
