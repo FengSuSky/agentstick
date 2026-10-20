@@ -47,6 +47,7 @@ static i2c_master_dev_handle_t s_pca9557_dev;
 #define M5PM1_PWR_CFG_LED_CTRL BIT(4)
 #define M5PM1_HOLD_CFG_LDO_HOLD BIT(5)
 #define M5PM1_GPIO2_L3B_POWER_EN BIT(2)
+#define M5PM1_GPIO3_SPK_EN BIT(3)
 #define M5PM1_GPIO_FUNC_MASK(pin) (0x03 << ((pin) * 2))
 #define M5PM1_GPIO_FUNC_GPIO(pin) (0x00 << ((pin) * 2))
 #define M5PM1_GPIO_FUNC_IRQ(pin)  (0x01 << ((pin) * 2))
@@ -318,6 +319,16 @@ static void init_pmic(void)
                                                   M5PM1_GPIO2_L3B_POWER_EN, 0));
     ESP_ERROR_CHECK_WITHOUT_ABORT(pmic_update_reg(M5PM1_REG_GPIO_OUT,
                                                   0, M5PM1_GPIO2_L3B_POWER_EN));
+    /* PYG3 is the AW8737 speaker-amp switch. Keep it off until playback. */
+    ESP_ERROR_CHECK_WITHOUT_ABORT(pmic_update_reg(M5PM1_REG_GPIO_FUNC0,
+                                                  M5PM1_GPIO_FUNC_MASK(3),
+                                                  M5PM1_GPIO_FUNC_GPIO(3)));
+    ESP_ERROR_CHECK_WITHOUT_ABORT(pmic_update_reg(M5PM1_REG_GPIO_MODE,
+                                                  0, M5PM1_GPIO3_SPK_EN));
+    ESP_ERROR_CHECK_WITHOUT_ABORT(pmic_update_reg(M5PM1_REG_GPIO_DRV,
+                                                  M5PM1_GPIO3_SPK_EN, 0));
+    ESP_ERROR_CHECK_WITHOUT_ABORT(pmic_update_reg(M5PM1_REG_GPIO_OUT,
+                                                  M5PM1_GPIO3_SPK_EN, 0));
     ESP_ERROR_CHECK_WITHOUT_ABORT(pmic_write_reg(M5PM1_REG_I2C_CFG, 0x00));
     ESP_ERROR_CHECK_WITHOUT_ABORT(pmic_update_reg(M5PM1_REG_GPIO_FUNC0, BIT(0), 0));
     ESP_ERROR_CHECK_WITHOUT_ABORT(pmic_update_reg(M5PM1_REG_GPIO_MODE, BIT(0), 0));
@@ -412,9 +423,17 @@ esp_err_t stick_s3_board_speaker_enable(bool enabled)
     }
     return err;
 #else
-    /* StickS3 powers its speaker rail during PMIC initialization. */
-    (void)enabled;
-    return ESP_OK;
+    /* StickS3: L3B (PYG2) powers the audio rail; PYG3 enables the AW8737 amp. */
+    if (!s_pmic_dev) {
+        return ESP_ERR_INVALID_STATE;
+    }
+    esp_err_t err = pmic_update_reg(M5PM1_REG_GPIO_OUT,
+                                    enabled ? 0 : M5PM1_GPIO3_SPK_EN,
+                                    enabled ? M5PM1_GPIO3_SPK_EN : 0);
+    if (err == ESP_OK) {
+        ESP_LOGI(TAG, "speaker amplifier %s", enabled ? "enabled" : "disabled");
+    }
+    return err;
 #endif
 }
 

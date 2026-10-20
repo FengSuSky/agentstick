@@ -162,12 +162,12 @@ final class BleCentral: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate
         }
     }
 
-    /// Plays a tone on the device and reports whether it reached one.
+    /// Plays a tone on the device and reports whether a connected device was targeted.
     ///
-    /// Written with `.withResponse` unlike the UI state updates: a dropped alert is a real
-    /// failure (the user never learns the task finished), while a dropped caption is not.
-    /// When the device that started the task is gone, the tone is sent to whatever AgentStick
-    /// is still connected to, so the result is `true` only if some device actually got it.
+    /// The firmware control characteristic is `WRITE_NO_RSP` only. CoreBluetooth drops
+    /// `.withResponse` writes to that char (no ATT Write Request exists), so sounds must
+    /// use `.withoutResponse` like every other control payload. `true` means a device
+    /// was selected, not that the speaker finished playing.
     @discardableResult
     func playSound(_ sound: String, to peripheralID: UUID? = nil) -> Bool {
         let data = BleProtocol.playSoundPayload(sound)
@@ -177,7 +177,7 @@ final class BleCentral: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate
                 let deviceID = connectedDevices[peripheralID]?.deviceID ?? "unknown"
                 NSLog("BLE play_sound sound=\(sound) dev=VS-\(deviceID)")
                 AgentDebugLog.write("play_sound \(sound) dev=VS-\(deviceID)")
-                peripheral.writeValue(data, for: characteristic, type: .withResponse)
+                writeControl(data, peripheral: peripheral, characteristic: characteristic)
                 return true
             }
             NSLog("BLE play_sound skipped missing connection sound=\(sound) id=\(peripheralID)")
@@ -196,10 +196,19 @@ final class BleCentral: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate
             guard let peripheral = peripherals[id] else { continue }
             let deviceID = connectedDevices[id]?.deviceID ?? "unknown"
             AgentDebugLog.write("play_sound \(sound) broadcast dev=VS-\(deviceID)")
-            peripheral.writeValue(data, for: characteristic, type: .withResponse)
+            writeControl(data, peripheral: peripheral, characteristic: characteristic)
             delivered = true
         }
         return delivered
+    }
+
+    /// Control char is firmware `WRITE_NO_RSP` only. `ui_state` writes already succeed
+    /// with `.withoutResponse`; sound must use the same type or CoreBluetooth drops it.
+    private func writeControl(_ data: Data, peripheral: CBPeripheral, characteristic: CBCharacteristic) {
+        AgentDebugLog.write(
+            "control write props=\(characteristic.properties.rawValue) canWithoutRsp=\(peripheral.canSendWriteWithoutResponse)"
+        )
+        peripheral.writeValue(data, for: characteristic, type: .withoutResponse)
     }
 
     func sendSoundVolume(_ volume: Int, to peripheralID: UUID? = nil) {
@@ -229,7 +238,7 @@ final class BleCentral: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate
         }
         let data = BleProtocol.playSoundPayload(sound)
         NSLog("BLE play_sound test sound=\(sound) dev=VS-\(deviceID)")
-        peripheral.writeValue(data, for: characteristic, type: .withoutResponse)
+        writeControl(data, peripheral: peripheral, characteristic: characteristic)
         return true
     }
 
@@ -290,6 +299,14 @@ final class BleCentral: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate
 
     var hasConnectedDevice: Bool {
         !connectedDevices.isEmpty
+    }
+
+    var connectedDeviceIDs: [String] {
+        connectedDevices.values.map(\.deviceID).sorted()
+    }
+
+    func peripheralID(for deviceID: String) -> UUID? {
+        connectedDevices.first(where: { $0.value.deviceID == deviceID })?.key
     }
 
     func centralManagerDidUpdateState(_ central: CBCentralManager) {

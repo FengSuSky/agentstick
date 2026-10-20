@@ -9,3 +9,4 @@ esp_err_t audio_pipeline_start(uint32_t session_id);
 esp_err_t audio_pipeline_stop(void);
 uint32_t audio_pipeline_session_id(void);
 bool audio_pipeline_is_running(void);
+bool audio_pipeline_i2s_released(void);

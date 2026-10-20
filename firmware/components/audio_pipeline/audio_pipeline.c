@@ -506,3 +506,8 @@ bool audio_pipeline_is_running(void)
 {
     return atomic_load(&s_running);
 }
+
+bool audio_pipeline_i2s_released(void)
+{
+    return s_rx_handle == NULL;
+}
