@@ -6,6 +6,7 @@ enum AgentCLIType: String {
     case codexExec = "codex_exec"
     case claudePrint = "claude_print"
     case iMessage = "imessage"
+    case workBuddyLocal = "workbuddy_local"
     case generic = "generic"
 }
 
@@ -15,12 +16,29 @@ struct AgentCLIDefinition: Equatable {
     var arguments: [String]
     /// iMessage address (email address or phone number) for a remote agent.
     var recipient: String?
+    /// WorkBuddy Client ID override; empty values use the built-in developer application.
+    var clientID: String?
+    /// Quiet period before a WorkBuddy reply is treated as final.
+    var settleSeconds: Int?
+    /// Overrides the loopback callback the open platform has registered for this app.
+    var redirectURI: String?
 
-    init(type: AgentCLIType, command: String? = nil, arguments: [String] = [], recipient: String? = nil) {
+    init(
+        type: AgentCLIType,
+        command: String? = nil,
+        arguments: [String] = [],
+        recipient: String? = nil,
+        clientID: String? = nil,
+        settleSeconds: Int? = nil,
+        redirectURI: String? = nil
+    ) {
         self.type = type
         self.command = command
         self.arguments = arguments
         self.recipient = recipient
+        self.clientID = clientID
+        self.settleSeconds = settleSeconds
+        self.redirectURI = redirectURI
     }
 }
 
@@ -37,7 +55,8 @@ struct AgentCLIConfig: Equatable {
         agents: [
             "claude": AgentCLIDefinition(type: .claudePrint),
             "codex": AgentCLIDefinition(type: .codexExec),
-            "imessage": AgentCLIDefinition(type: .iMessage)
+            "imessage": AgentCLIDefinition(type: .iMessage),
+            "workbuddy": AgentCLIDefinition(type: .workBuddyLocal, clientID: WorkBuddyAppCredentials.clientID)
         ]
     )
 
@@ -112,9 +131,9 @@ struct AgentCLICommand {
             (resumeSessionID.map { ["--resume", $0] } ?? []) + [
                 task.prompt
             ]
-        case .iMessage:
-            // iMessage does not launch a command. AgentCLIRunner routes it to
-            // IMessageAgentRunner before a command is constructed.
+        case .iMessage, .workBuddyLocal:
+            // Neither backend launches a command. AgentCLIRunner routes them to a
+            // dedicated runner before a command is constructed.
             executable = ""
             arguments = []
         case .generic:
@@ -244,6 +263,23 @@ final class AgentCLIRunner {
                     task: task,
                     recipient: definition.recipient ?? "",
                     timeoutSeconds: config.timeoutSeconds
+                )
+                DispatchQueue.main.async {
+                    completion(result)
+                }
+            }
+            return
+        }
+        if definition.type == .workBuddyLocal {
+            let settleSeconds = definition.settleSeconds ?? WorkBuddyLocalAssistantRunner.defaultSettleSeconds
+            DispatchQueue.global(qos: .userInitiated).async {
+                let result = WorkBuddyLocalAssistantRunner().run(
+                    task: task,
+                    clientID: WorkBuddyAppCredentials.effectiveClientID(definition.clientID),
+                    timeoutSeconds: config.timeoutSeconds,
+                    settleSeconds: settleSeconds,
+                    approvalHandler: approvalHandler,
+                    inputHandler: inputHandler
                 )
                 DispatchQueue.main.async {
                     completion(result)

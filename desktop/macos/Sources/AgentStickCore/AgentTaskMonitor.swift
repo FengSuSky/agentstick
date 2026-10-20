@@ -7,6 +7,19 @@ public enum AgentTaskState: String, Codable, Sendable, Equatable {
     case needsInput = "needs_input"
     case completed
     case failed
+
+    /// Background `.running` occupies the stick only in Agent Run, so Text Paste
+    /// can still start a recording while a task continues on the Mac.
+    public func shouldDriveDeviceUI(outputTargetRawValue: String) -> Bool {
+        switch self {
+        case .idle:
+            return false
+        case .running:
+            return outputTargetRawValue == "agent_cli"
+        case .waitingForApproval, .needsInput, .completed, .failed:
+            return true
+        }
+    }
 }
 
 public struct AgentTaskSnapshot: Codable, Sendable, Equatable {

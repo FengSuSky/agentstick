@@ -229,6 +229,7 @@ final class AgentStickCoordinator {
     }
 
     func updateConfig(_ config: AppConfig) {
+        let previousTarget = self.config.defaultOutputProfile.target
         let wasRecognizing = asrStarted || mainInputState.isBusy || isWaitingForFinalText || !subtitleCycles.isEmpty
         if wasRecognizing {
             asr.onPartial = nil
@@ -263,7 +264,14 @@ final class AgentStickCoordinator {
         translator = LLMTranslationClient(config: config)
         configureASRCallbacks()
 
-        if pairedDeviceIDs != config.pairedDeviceIDs {
+        let leftAgentRun = previousTarget == .agentCLI && config.defaultOutputProfile.target != .agentCLI
+        if leftAgentRun {
+            if case .agentRunning = mainInputState {
+                mainInputState = .ready
+            }
+            statusController.setStatus(outputModeHint)
+            ble.sendUIState("ready", text: outputModeHint)
+        } else if pairedDeviceIDs != config.pairedDeviceIDs {
             updatePairedDeviceIDs(config.pairedDeviceIDs)
         } else if isShowingASRError {
             recoverFromASRError()
@@ -385,6 +393,11 @@ final class AgentStickCoordinator {
     }
 
     func handleAgentTaskSnapshot(_ snapshot: AgentTaskSnapshot) {
+        guard snapshot.state.shouldDriveDeviceUI(
+            outputTargetRawValue: config.defaultOutputProfile.target.rawValue
+        ) else {
+            return
+        }
         taskDisplayGeneration += 1
         switch snapshot.state {
         case .idle:
@@ -425,13 +438,12 @@ final class AgentStickCoordinator {
             AgentDebugLog.write("sound \(sound) suppressed alerts disabled")
             return
         }
-        ble.playSound(sound, to: peripheralID) { delivered in
-            // Wait for the BLE write to be confirmed. Returning true at submit time
-            // skipped this fallback when the device dropped the packet or disconnected.
-            guard !delivered else { return }
-            AgentDebugLog.write("sound \(sound) no device reached, local fallback")
-            NSSound(named: NSSound.Name(Self.localFallbackSoundName(for: sound)))?.play()
-        }
+        let delivered = ble.playSound(sound, to: peripheralID)
+        // A task can outlive the device connection it started on. Rather than losing the
+        // alert, fall back to a system sound so the user still hears that it finished.
+        guard !delivered else { return }
+        AgentDebugLog.write("sound \(sound) no device reached, local fallback")
+        NSSound(named: NSSound.Name(Self.localFallbackSoundName(for: sound)))?.play()
     }
 
     private static func localFallbackSoundName(for sound: String) -> String {
@@ -461,20 +473,40 @@ final class AgentStickCoordinator {
     }
 
     func testDeviceSound(deviceID: String) {
+        guard ble.isConnected(deviceID: deviceID) else {
+            statusController.setStatus(currentLanguage == .chinese ? "设备未连接" : "Device not connected")
+            return
+        }
+        ble.sendUIState(
+            "notification",
+            text: currentLanguage == .chinese ? "测试提示音" : "Test sound",
+            to: ble.peripheralID(for: deviceID)
+        )
         if ble.playSound("task_done", for: deviceID) {
             statusController.setStatus(currentLanguage == .chinese ? "已发送设备提示音" : "Device sound sent")
-        } else {
-            statusController.setStatus(currentLanguage == .chinese ? "设备未连接" : "Device not connected")
+        }
+        if let peripheralID = ble.peripheralID(for: deviceID) {
+            restoreReadyAfterTaskResult(on: peripheralID)
         }
     }
 
     @discardableResult
     func testDeviceSound(volume: Int) -> Bool {
         guard ble.hasConnectedDevice else { return false }
+        let connected = ble.connectedDeviceIDs.joined(separator: ",")
+        AgentDebugLog.write("test sound volume=\(volume) connected=\(connected)")
         ble.sendSoundVolume(volume)
+        // The test used to send audio only, so the stick looked dead even when BLE
+        // arrived. Flash the screen first so a silent speaker is distinguishable
+        // from a dropped write.
+        ble.sendUIState(
+            "notification",
+            text: currentLanguage == .chinese ? "测试提示音" : "Test sound"
+        )
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.12) { [weak self] in
             self?.ble.playSound("task_done")
         }
+        restoreReadyAfterBroadcast()
         return true
     }
 
@@ -593,13 +625,8 @@ final class AgentStickCoordinator {
             return
         }
         switch mainInputState {
-        case .ready:
+        case .ready, .agentRunning:
             cycleOutputTarget(peripheralID: peripheralID)
-        case .agentRunning(let activePeripheralID, _):
-            if activePeripheralID == peripheralID {
-                statusController.setStatus(currentLanguage == .chinese ? "Agent 运行中" : "Agent Running")
-                ble.sendUIState("task_running", text: "Agent running", to: peripheralID)
-            }
         default:
             cancelPendingPaste(peripheralID: peripheralID)
         }
@@ -622,7 +649,7 @@ final class AgentStickCoordinator {
         } else {
             isStartingAgentVoiceAnswer = false
         }
-        if mainInputState.isBusy && !isStartingAgentVoiceAnswer {
+        if isMainInputBlockingVoice && !isStartingAgentVoiceAnswer {
             if activePeripheralID != peripheralID {
                 ble.sendUIState("ready", to: peripheralID)
             } else if mainInputState.isFinalizing || isWaitingForFinalText {
@@ -1503,10 +1530,12 @@ final class AgentStickCoordinator {
                 }
                 self.presentAgentError(error, prompt: text)
             }
-            self.statusController.setStatus(L10n.ready)
-            self.mainInputState = .ready
-            if let peripheralID {
-                self.restoreReadyAfterTaskResult(on: peripheralID)
+            if !self.mainInputState.isRecording && !self.mainInputState.isFinalizing {
+                self.statusController.setStatus(L10n.ready)
+                self.mainInputState = .ready
+                if let peripheralID {
+                    self.restoreReadyAfterTaskResult(on: peripheralID)
+                }
             }
         }
     }
@@ -1552,6 +1581,18 @@ final class AgentStickCoordinator {
                   !self.mainInputState.isBusy
             else { return }
             self.ble.sendUIState("ready", text: self.outputModeHint, to: peripheralID)
+        }
+    }
+
+    private func restoreReadyAfterBroadcast() {
+        taskDisplayGeneration += 1
+        let generation = taskDisplayGeneration
+        DispatchQueue.main.asyncAfter(deadline: .now() + 4) { [weak self] in
+            guard let self,
+                  self.taskDisplayGeneration == generation,
+                  !self.mainInputState.isBusy
+            else { return }
+            self.ble.sendUIState("ready", text: self.outputModeHint)
         }
     }
 
@@ -1849,9 +1890,23 @@ final class AgentStickCoordinator {
         }
     }
 
+    private var isMainInputBlockingVoice: Bool {
+        switch mainInputState {
+        case .ready:
+            return false
+        case .agentRunning:
+            return config.defaultOutputProfile.target == .agentCLI
+        default:
+            return true
+        }
+    }
+
     private func cycleOutputTarget(peripheralID: UUID) {
         let nextTarget: OutputTarget = config.defaultOutputProfile.target == .agentCLI ? .focusedApp : .agentCLI
         config.defaultOutputProfile.target = nextTarget
+        if nextTarget != .agentCLI, case .agentRunning = mainInputState {
+            mainInputState = .ready
+        }
         do {
             try config.save()
             statusController.setDefaultOutputProfile(config.defaultOutputProfile)

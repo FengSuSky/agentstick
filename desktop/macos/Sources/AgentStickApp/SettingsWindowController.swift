@@ -1,5 +1,17 @@
 import AppKit
 
+private enum SettingsWindowLayout {
+    /// Row layout is: 24pt margin + 120pt label + 12pt spacing + control + 24pt margin.
+    static let rowLeading: CGFloat = 132
+    static let outerMargin: CGFloat = 24
+    static let windowWidth: CGFloat = 640
+    static let minWindowWidth: CGFloat = 560
+    /// Keeps wrapping hint text from exceeding the window's usable width.
+    static var hintMaxWidth: CGFloat {
+        windowWidth - (rowLeading + outerMargin * 2)
+    }
+}
+
 final class SettingsWindowController: NSWindowController {
     private let providerPopup = NSPopUpButton()
     private let apiKeyField = NSSecureTextField()
@@ -15,6 +27,21 @@ final class SettingsWindowController: NSWindowController {
     private let agentWorkingDirectoryField = NSTextField()
     private let agentTimeoutField = NSTextField()
     private let iMessageRecipientField = NSTextField()
+    private let workBuddyClientIDField = NSTextField()
+    private let workBuddyClientSecretField = NSSecureTextField()
+    private let workBuddyRedirectURIField = NSTextField()
+    private let workBuddyConnectButton = NSButton(
+        title: currentLanguage == .chinese ? "连接 WorkBuddy" : "Connect WorkBuddy",
+        target: nil,
+        action: nil
+    )
+    private let workBuddyStatusLabel = NSTextField(labelWithString: "")
+    private let workBuddyPasteCodeButton = NSButton(
+        title: currentLanguage == .chinese ? "粘贴授权码" : "Paste code",
+        target: nil,
+        action: nil
+    )
+    private var workBuddyAuthController: WorkBuddyAuthController?
     private let agentSoundAlertsButton = NSButton(
         checkboxWithTitle: currentLanguage == .chinese ? "任务结束时在设备播放提示音" : "Play task alerts on device",
         target: nil,
@@ -51,13 +78,13 @@ final class SettingsWindowController: NSWindowController {
     init(config: AppConfig = AppConfig.load()) {
         self.config = config
         let window = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 640, height: 760),
+            contentRect: NSRect(x: 0, y: 0, width: SettingsWindowLayout.windowWidth, height: 760),
             styleMask: [.titled, .closable, .miniaturizable, .resizable],
             backing: .buffered,
             defer: false
         )
         window.title = L10n.agentStickSettings
-        window.minSize = NSSize(width: 640, height: 480)
+        window.minSize = NSSize(width: SettingsWindowLayout.minWindowWidth, height: 480)
         window.isReleasedWhenClosed = false
         super.init(window: window)
         buildContent()
@@ -67,6 +94,12 @@ final class SettingsWindowController: NSWindowController {
             selector: #selector(apiKeyFieldDidChange),
             name: NSControl.textDidChangeNotification,
             object: apiKeyField
+        )
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(workBuddyClientIDDidChange),
+            name: NSControl.textDidChangeNotification,
+            object: workBuddyClientIDField
         )
     }
 
@@ -164,6 +197,49 @@ final class SettingsWindowController: NSWindowController {
             currentLanguage == .chinese
                 ? "会话会按 Agent、工程目录和语义自动延续。说“新会话”可强制新建，说“继续会话”可强制接续。"
                 : "Sessions continue automatically by agent, project, and context. Say “new conversation” or “continue conversation” to override."
+        ))
+        stack.addArrangedSubview(sectionTitle("WorkBuddy"))
+        workBuddyClientIDField.placeholderString = WorkBuddyAppCredentials.clientID
+        workBuddyClientSecretField.placeholderString = currentLanguage == .chinese
+            ? "已内置；自定义应用时填写"
+            : "Built in; fill only for a custom application"
+        stack.addArrangedSubview(row(
+            label: currentLanguage == .chinese ? "Client ID" : "Client ID",
+            control: workBuddyClientIDField
+        ))
+        stack.addArrangedSubview(row(
+            label: currentLanguage == .chinese ? "Client Secret" : "Client Secret",
+            control: workBuddyClientSecretField
+        ))
+        workBuddyRedirectURIField.placeholderString = WorkBuddyOAuthCallbackServer.defaultRedirectURI
+        stack.addArrangedSubview(row(
+            label: currentLanguage == .chinese ? "回调地址" : "Callback URL",
+            control: workBuddyRedirectURIField
+        ))
+        workBuddyConnectButton.target = self
+        workBuddyConnectButton.action = #selector(connectWorkBuddy)
+        let workBuddyControls = NSStackView()
+        workBuddyControls.orientation = .horizontal
+        workBuddyControls.alignment = .centerY
+        workBuddyControls.spacing = 8
+        workBuddyPasteCodeButton.target = self
+        workBuddyPasteCodeButton.action = #selector(pasteWorkBuddyCode)
+        workBuddyControls.addArrangedSubview(workBuddyConnectButton)
+        workBuddyControls.addArrangedSubview(workBuddyPasteCodeButton)
+        workBuddyControls.addArrangedSubview(workBuddyStatusLabel)
+        stack.addArrangedSubview(row(
+            label: currentLanguage == .chinese ? "授权" : "Authorization",
+            control: workBuddyControls
+        ))
+        stack.addArrangedSubview(hintRow(
+            currentLanguage == .chinese
+                ? "已内置开发者应用配置，无需申请或填写凭据，点击连接并授权即可。语音任务发给已登录的 WorkBuddy，授权或提问可在任务历史窗口应答。"
+                : "Developer credentials are built in. Click Connect and authorize. Tasks go to your signed-in WorkBuddy; answer approvals and questions in task history."
+        ))
+        stack.addArrangedSubview(hintRow(
+            currentLanguage == .chinese
+                ? "回调地址需与开放平台登记值完全一致（默认 \(WorkBuddyOAuthCallbackServer.defaultRedirectURI)）；登记为 https 时无法自动接收跳转，完成授权后点“粘贴授权码”。"
+                : "The callback URL must match the platform value exactly (default \(WorkBuddyOAuthCallbackServer.defaultRedirectURI)); an https address cannot be received automatically, so click “Paste code” after approving."
         ))
         let memoryControls = NSStackView()
         memoryControls.orientation = .horizontal
@@ -343,6 +419,8 @@ final class SettingsWindowController: NSWindowController {
                 agentPopup.addItem(withTitle: "Codex")
             case "imessage":
                 agentPopup.addItem(withTitle: "iMessage Remote Agent")
+            case "workbuddy":
+                agentPopup.addItem(withTitle: "WorkBuddy")
             default:
                 agentPopup.addItem(withTitle: name)
             }
@@ -350,6 +428,185 @@ final class SettingsWindowController: NSWindowController {
         }
     }
 
+
+    private func updateWorkBuddyStatus() {
+        let clientID = WorkBuddyAppCredentials.effectiveClientID(workBuddyClientIDField.stringValue)
+        // Load first so a read failure from this very call is not missed by an
+        // earlier storageError() check that reflects a previous operation.
+        let token = WorkBuddyAuthStore.shared.loadToken(clientID: clientID)
+        if let error = WorkBuddyAuthStore.shared.storageError() {
+            workBuddyStatusLabel.stringValue = currentLanguage == .chinese
+                ? "存储异常：\(error)" : "Storage error: \(error)"
+            workBuddyStatusLabel.textColor = .systemRed
+        } else if token != nil {
+            workBuddyStatusLabel.stringValue = currentLanguage == .chinese
+                ? "已授权" : "Authorized"
+            workBuddyStatusLabel.textColor = .systemGreen
+        } else {
+            workBuddyStatusLabel.stringValue = currentLanguage == .chinese
+                ? "未授权" : "Not authorized"
+            workBuddyStatusLabel.textColor = .secondaryLabelColor
+        }
+    }
+
+    @objc private func connectWorkBuddy() {
+        let clientID = WorkBuddyAppCredentials.effectiveClientID(workBuddyClientIDField.stringValue)
+        let enteredSecret = workBuddyClientSecretField.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
+        let clientSecret = clientID == WorkBuddyAppCredentials.clientID || enteredSecret.isEmpty
+            ? (WorkBuddyAuthStore.shared.clientSecret(clientID: clientID) ?? "") : enteredSecret
+        guard !clientID.isEmpty else {
+            workBuddyStatusLabel.stringValue = currentLanguage == .chinese ? "请先填写 Client ID" : "Enter the Client ID first"
+            workBuddyStatusLabel.textColor = .systemRed
+            return
+        }
+        guard !clientSecret.isEmpty else {
+            workBuddyStatusLabel.stringValue = currentLanguage == .chinese
+                ? "请先填写 Client Secret" : "Enter the Client Secret first"
+            workBuddyStatusLabel.textColor = .systemRed
+            return
+        }
+
+        if clientID != WorkBuddyAppCredentials.clientID {
+            do {
+                try WorkBuddyAuthStore.shared.saveClientSecret(clientSecret, forClientID: clientID)
+            } catch {
+                workBuddyStatusLabel.stringValue = currentLanguage == .chinese
+                    ? "保存 Client Secret 失败：\(error.localizedDescription)"
+                    : "Failed to save Client Secret: \(error.localizedDescription)"
+                workBuddyStatusLabel.textColor = .systemRed
+                return
+            }
+        }
+        workBuddyClientSecretField.stringValue = ""
+        workBuddyStatusLabel.stringValue = currentLanguage == .chinese
+            ? "正在浏览器中授权…" : "Waiting for authorization…"
+        workBuddyStatusLabel.textColor = .secondaryLabelColor
+        workBuddyConnectButton.isEnabled = false
+
+        let controller = WorkBuddyAuthController()
+        workBuddyAuthController = controller
+        let configured = workBuddyRedirectURIField.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
+        let effectiveRedirect = configured.isEmpty
+            ? WorkBuddyOAuthCallbackServer.defaultRedirectURI
+            : configured
+
+        // An https loopback URL (or any address this app cannot listen on) still has to be
+        // sent verbatim, because the platform compares it byte for byte. The browser will
+        // land on a page that never opens, so the code is collected by hand instead.
+        guard WorkBuddyAuthController.canServeRedirect(effectiveRedirect) else {
+            guard let url = controller.makeAuthorizationURL(
+                clientID: clientID,
+                redirectURLOverride: effectiveRedirect
+            ) else {
+                workBuddyConnectButton.isEnabled = true
+                workBuddyStatusLabel.stringValue = currentLanguage == .chinese
+                    ? "无法生成授权链接，请检查 Client ID" : "Could not build the authorization URL. Check the Client ID."
+                workBuddyStatusLabel.textColor = .systemRed
+                return
+            }
+            NSWorkspace.shared.open(url)
+            // The link also goes to the clipboard: if the default browser is sandboxed or
+            // the open call is swallowed, the user can still paste it into any browser.
+            NSPasteboard.general.clearContents()
+            NSPasteboard.general.setString(url.absoluteString, forType: .string)
+            workBuddyConnectButton.isEnabled = true
+            workBuddyStatusLabel.stringValue = currentLanguage == .chinese
+                ? "浏览器已打开：登录后同意，再点“粘贴授权码”（授权码约 2 分钟内有效）"
+                : "Browser opened: sign in, approve, then click “Paste code” (the code lasts about 2 minutes)"
+            workBuddyStatusLabel.textColor = .secondaryLabelColor
+            return
+        }
+
+        controller.authorize(
+            clientID: clientID,
+            clientSecret: clientSecret,
+            redirectURLOverride: effectiveRedirect
+        ) { [weak self] result in
+            guard let self else { return }
+            self.workBuddyConnectButton.isEnabled = true
+            switch result {
+            case .success:
+                self.workBuddyStatusLabel.stringValue = currentLanguage == .chinese
+                    ? "已授权" : "Authorized"
+                self.workBuddyStatusLabel.textColor = .systemGreen
+            case .failure(let error):
+                self.workBuddyStatusLabel.stringValue = error.localizedDescription
+                self.workBuddyStatusLabel.textColor = .systemRed
+            }
+            self.workBuddyAuthController = nil
+        }
+    }
+
+    /// Finishes an authorization whose redirect the desktop app could not receive.
+    @objc private func pasteWorkBuddyCode() {
+        let clientID = WorkBuddyAppCredentials.effectiveClientID(workBuddyClientIDField.stringValue)
+        guard !clientID.isEmpty else {
+            workBuddyStatusLabel.stringValue = currentLanguage == .chinese ? "请先填写 Client ID" : "Enter the Client ID first"
+            workBuddyStatusLabel.textColor = .systemRed
+            return
+        }
+        guard let clientSecret = WorkBuddyAuthStore.shared.clientSecret(clientID: clientID), !clientSecret.isEmpty else {
+            workBuddyStatusLabel.stringValue = currentLanguage == .chinese
+                ? "请先填写 Client Secret" : "Enter the Client Secret first"
+            workBuddyStatusLabel.textColor = .systemRed
+            return
+        }
+
+        let alert = NSAlert()
+        alert.messageText = currentLanguage == .chinese
+            ? "粘贴浏览器地址栏里的链接" : "Paste the URL from the address bar"
+        alert.informativeText = currentLanguage == .chinese
+            ? "同意授权后浏览器会跳到一个打不开的页面，把地址栏的完整链接复制进来即可。授权码约 2 分钟内有效，请尽快粘贴。"
+            : "After you approve, the browser lands on a page that cannot open. Copy the full URL from the address bar. The code lasts about 2 minutes."
+        let field = NSTextField(frame: NSRect(x: 0, y: 0, width: 440, height: 24))
+        field.placeholderString = "https://localhost:10009/oauth/callback?code=…&state=…"
+        // Pre-fill whatever callback URL is already on the clipboard so the round trip stays
+        // short. The consent link also lands on the clipboard, so require an actual `code`
+        // query item and reject anything that still carries `response_type`.
+        if let clip = NSPasteboard.general.string(forType: .string),
+           let components = URLComponents(string: clip.trimmingCharacters(in: .whitespacesAndNewlines)),
+           let items = components.queryItems,
+           items.contains(where: { $0.name == "code" }),
+           !items.contains(where: { $0.name == "response_type" }) {
+            field.stringValue = clip.trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+        alert.accessoryView = field
+        alert.addButton(withTitle: currentLanguage == .chinese ? "完成授权" : "Finish")
+        alert.addButton(withTitle: currentLanguage == .chinese ? "取消" : "Cancel")
+        guard alert.runModal() == .alertFirstButtonReturn else { return }
+
+        let pasted = field.stringValue
+        guard !pasted.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
+
+        let controller = workBuddyAuthController ?? WorkBuddyAuthController()
+        workBuddyAuthController = controller
+        let configured = workBuddyRedirectURIField.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
+        let redirectURI = configured.isEmpty
+            ? WorkBuddyOAuthCallbackServer.defaultRedirectURI
+            : configured
+
+        workBuddyStatusLabel.stringValue = currentLanguage == .chinese ? "正在换取令牌…" : "Exchanging the code…"
+        workBuddyStatusLabel.textColor = .secondaryLabelColor
+
+        controller.completeWithPastedCode(
+            pasted,
+            clientID: clientID,
+            clientSecret: clientSecret,
+            redirectURI: redirectURI
+        ) { [weak self] result in
+            guard let self else { return }
+            switch result {
+            case .success:
+                self.workBuddyStatusLabel.stringValue = currentLanguage == .chinese
+                    ? "已授权" : "Authorized"
+                self.workBuddyStatusLabel.textColor = .systemGreen
+            case .failure(let error):
+                self.workBuddyStatusLabel.stringValue = error.localizedDescription
+                self.workBuddyStatusLabel.textColor = .systemRed
+            }
+            self.workBuddyAuthController = nil
+        }
+    }
 
     private func loadConfigIntoFields() {
         configureAgentPopup()
@@ -369,6 +626,9 @@ final class SettingsWindowController: NSWindowController {
         agentWorkingDirectoryField.stringValue = config.agentConfig.workingDirectory.path
         agentTimeoutField.stringValue = String(config.agentConfig.timeoutSeconds)
         iMessageRecipientField.stringValue = config.agentConfig.definition(for: "imessage")?.recipient ?? ""
+        workBuddyClientIDField.stringValue = WorkBuddyAppCredentials.effectiveClientID(config.agentConfig.definition(for: "workbuddy")?.clientID)
+        workBuddyRedirectURIField.stringValue = config.agentConfig.definition(for: "workbuddy")?.redirectURI ?? ""
+        updateWorkBuddyStatus()
         agentSoundAlertsButton.state = config.agentSoundAlertsEnabled ? .on : .off
         agentBypassApprovalsButton.state = config.agentBypassApprovals ? .on : .off
         agentMemoryButton.state = config.agentMemoryEnabled ? .on : .off
@@ -397,6 +657,10 @@ final class SettingsWindowController: NSWindowController {
 
     @objc private func apiKeyFieldDidChange() {
         updateApplyTrialButton()
+    }
+
+    @objc private func workBuddyClientIDDidChange() {
+        updateWorkBuddyStatus()
     }
 
     @objc private func deviceSoundVolumeChanged() {
@@ -504,6 +768,25 @@ final class SettingsWindowController: NSWindowController {
         var iMessageDefinition = agentDefinitions["imessage"] ?? AgentCLIDefinition(type: .iMessage)
         iMessageDefinition.recipient = iMessageRecipientField.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
         agentDefinitions["imessage"] = iMessageDefinition
+        var workBuddyDefinition = agentDefinitions["workbuddy"] ?? AgentCLIDefinition(type: .workBuddyLocal)
+        workBuddyDefinition.clientID = WorkBuddyAppCredentials.effectiveClientID(workBuddyClientIDField.stringValue)
+        let workBuddyRedirectURI = workBuddyRedirectURIField.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
+        workBuddyDefinition.redirectURI = workBuddyRedirectURI.isEmpty ? nil : workBuddyRedirectURI
+        agentDefinitions["workbuddy"] = workBuddyDefinition
+        let workBuddySecret = workBuddyClientSecretField.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !workBuddySecret.isEmpty, workBuddyDefinition.clientID != WorkBuddyAppCredentials.clientID {
+            let cid = WorkBuddyAppCredentials.effectiveClientID(workBuddyDefinition.clientID)
+            do {
+                try WorkBuddyAuthStore.shared.saveClientSecret(workBuddySecret, forClientID: cid)
+            } catch {
+                showErrorAlert(
+                    title: currentLanguage == .chinese ? "保存失败" : "Save failed",
+                    message: error.localizedDescription
+                )
+                return
+            }
+            workBuddyClientSecretField.stringValue = ""
+        }
         let agentConfig = AgentCLIConfig(
             defaultAgent: agentName,
             workingDirectory: agentDirectory,
@@ -664,7 +947,13 @@ final class SettingsWindowController: NSWindowController {
         let label = NSTextField(labelWithString: text)
         label.textColor = .secondaryLabelColor
         label.font = .systemFont(ofSize: 11)
-        label.widthAnchor.constraint(greaterThanOrEqualToConstant: 300).isActive = true
+        // Hints must wrap. A single-line NSTextField reports the full text width as its
+        // intrinsic size, which inflates the stack and drags the window wider than the screen.
+        label.lineBreakMode = .byWordWrapping
+        label.maximumNumberOfLines = 0
+        label.preferredMaxLayoutWidth = SettingsWindowLayout.hintMaxWidth
+        label.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+        label.widthAnchor.constraint(lessThanOrEqualToConstant: SettingsWindowLayout.hintMaxWidth).isActive = true
 
         row.addArrangedSubview(spacer)
         row.addArrangedSubview(label)

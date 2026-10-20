@@ -61,11 +61,6 @@ final class BleCentral: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate
         let completion: (Result<Void, Error>) -> Void
     }
 
-    private struct PendingSoundAck {
-        let completion: (Bool) -> Void
-        let timeoutWork: DispatchWorkItem
-    }
-
     private var pairedDeviceIDs: Set<String>
     private var central: CBCentralManager!
     private var peripherals: [UUID: CBPeripheral] = [:]
@@ -74,13 +69,9 @@ final class BleCentral: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate
     private var controlCharacteristics: [UUID: CBCharacteristic] = [:]
     private var otaCharacteristics: [UUID: CBCharacteristic] = [:]
     private var firmwareUpdateSession: FirmwareUpdateSession?
-    private var pendingSoundAcks: [UUID: [PendingSoundAck]] = [:]
-    private var staleSoundAcks: [UUID: Int] = [:]
     private var interactionMode: InteractionMode = .holdToTalk
     private var soundVolume: Int
     private var isWorkspaceSleeping = false
-
-    private static let soundWriteTimeout: TimeInterval = 1.0
 
     var onConnectionChange: (([ConnectedAgentStickDevice]) -> Void)?
     var onAudioFrame: ((UUID, AudioFrame) -> Void)?
@@ -94,7 +85,6 @@ final class BleCentral: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate
 
     deinit {
         NSWorkspace.shared.notificationCenter.removeObserver(self)
-        failAllPendingSoundWrites()
     }
 
     func start() {
@@ -123,7 +113,6 @@ final class BleCentral: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate
         connectedDevices.removeAll()
         controlCharacteristics.removeAll()
         otaCharacteristics.removeAll()
-        failAllPendingSoundWrites()
         failFirmwareUpdate(FirmwareUpdateError.noConnectedDevice)
         onConnectionChange?([])
         scanIfReady()
@@ -173,15 +162,14 @@ final class BleCentral: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate
         }
     }
 
-    /// Plays a tone on the device and reports whether a write was confirmed.
+    /// Plays a tone on the device and reports whether a connected device was targeted.
     ///
-    /// Written with `.withResponse` unlike the UI state updates: a dropped alert is a real
-    /// failure (the user never learns the task finished), while a dropped caption is not.
-    /// `completion(true)` runs only after CoreBluetooth confirms the write. Write errors,
-    /// disconnects, and confirmation timeouts report `false` so the caller can fall back
-    /// to a local sound. When the device that started the task is gone, the tone is sent
-    /// to whatever AgentStick is still connected to.
-    func playSound(_ sound: String, to peripheralID: UUID? = nil, completion: ((Bool) -> Void)? = nil) {
+    /// The firmware control characteristic is `WRITE_NO_RSP` only. CoreBluetooth drops
+    /// `.withResponse` writes to that char (no ATT Write Request exists), so sounds must
+    /// use `.withoutResponse` like every other control payload. `true` means a device
+    /// was selected, not that the speaker finished playing.
+    @discardableResult
+    func playSound(_ sound: String, to peripheralID: UUID? = nil) -> Bool {
         let data = BleProtocol.playSoundPayload(sound)
         if let peripheralID {
             if let characteristic = controlCharacteristics[peripheralID],
@@ -189,110 +177,38 @@ final class BleCentral: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate
                 let deviceID = connectedDevices[peripheralID]?.deviceID ?? "unknown"
                 NSLog("BLE play_sound sound=\(sound) dev=VS-\(deviceID)")
                 AgentDebugLog.write("play_sound \(sound) dev=VS-\(deviceID)")
-                writeSound(data, to: peripheral, characteristic: characteristic, completion: completion)
-                return
+                writeControl(data, peripheral: peripheral, characteristic: characteristic)
+                return true
             }
             NSLog("BLE play_sound skipped missing connection sound=\(sound) id=\(peripheralID)")
             AgentDebugLog.write("play_sound \(sound) skipped no connection id=\(peripheralID)")
-            broadcastSound(data, sound: sound, completion: completion)
-            return
+            return broadcastSound(data, sound: sound)
         }
 
-        broadcastSound(data, sound: sound, completion: completion)
+        return broadcastSound(data, sound: sound)
     }
 
-    private func broadcastSound(_ data: Data, sound: String, completion: ((Bool) -> Void)?) {
-        let targets = controlCharacteristics.compactMap { id, characteristic -> (CBPeripheral, CBCharacteristic)? in
-            guard let peripheral = peripherals[id] else { return nil }
-            return (peripheral, characteristic)
-        }
-        NSLog("BLE play_sound broadcast sound=\(sound) targets=\(targets.count)")
-        guard !targets.isEmpty else {
-            completion?(false)
-            return
-        }
-
-        var remaining = targets.count
-        var anyDelivered = false
-        for (peripheral, characteristic) in targets {
-            let deviceID = connectedDevices[peripheral.identifier]?.deviceID ?? "unknown"
+    @discardableResult
+    private func broadcastSound(_ data: Data, sound: String) -> Bool {
+        NSLog("BLE play_sound broadcast sound=\(sound) targets=\(controlCharacteristics.count)")
+        var delivered = false
+        for (id, characteristic) in controlCharacteristics {
+            guard let peripheral = peripherals[id] else { continue }
+            let deviceID = connectedDevices[id]?.deviceID ?? "unknown"
             AgentDebugLog.write("play_sound \(sound) broadcast dev=VS-\(deviceID)")
-            writeSound(data, to: peripheral, characteristic: characteristic) { delivered in
-                if delivered {
-                    anyDelivered = true
-                }
-                remaining -= 1
-                if remaining == 0 {
-                    completion?(anyDelivered)
-                }
-            }
+            writeControl(data, peripheral: peripheral, characteristic: characteristic)
+            delivered = true
         }
+        return delivered
     }
 
-    private func writeSound(
-        _ data: Data,
-        to peripheral: CBPeripheral,
-        characteristic: CBCharacteristic,
-        completion: ((Bool) -> Void)?
-    ) {
-        let peripheralID = peripheral.identifier
-        let timeoutWork = DispatchWorkItem { [weak self] in
-            self?.finishSoundWrite(for: peripheralID, delivered: false, reason: "timeout", isTimeout: true)
-        }
-        pendingSoundAcks[peripheralID, default: []].append(
-            PendingSoundAck(completion: { delivered in completion?(delivered) }, timeoutWork: timeoutWork)
-        )
-        peripheral.writeValue(data, for: characteristic, type: .withResponse)
-        DispatchQueue.main.asyncAfter(deadline: .now() + Self.soundWriteTimeout, execute: timeoutWork)
-    }
-
-    private func finishSoundWrite(
-        for peripheralID: UUID,
-        delivered: Bool,
-        reason: String,
-        isTimeout: Bool
-    ) {
-        guard var queue = pendingSoundAcks[peripheralID], !queue.isEmpty else { return }
-        let pending = queue.removeFirst()
-        pendingSoundAcks[peripheralID] = queue.isEmpty ? nil : queue
-        pending.timeoutWork.cancel()
-        if isTimeout {
-            staleSoundAcks[peripheralID, default: 0] += 1
-        }
+    /// Control char is firmware `WRITE_NO_RSP` only. `ui_state` writes already succeed
+    /// with `.withoutResponse`; sound must use the same type or CoreBluetooth drops it.
+    private func writeControl(_ data: Data, peripheral: CBPeripheral, characteristic: CBCharacteristic) {
         AgentDebugLog.write(
-            "play_sound write \(delivered ? "ok" : "failed") \(reason) id=\(peripheralID.uuidString.prefix(8))"
+            "control write props=\(characteristic.properties.rawValue) canWithoutRsp=\(peripheral.canSendWriteWithoutResponse)"
         )
-        pending.completion(delivered)
-    }
-
-    private func consumeStaleSoundAck(for peripheralID: UUID) -> Bool {
-        guard let skip = staleSoundAcks[peripheralID], skip > 0 else { return false }
-        if skip == 1 {
-            staleSoundAcks.removeValue(forKey: peripheralID)
-        } else {
-            staleSoundAcks[peripheralID] = skip - 1
-        }
-        AgentDebugLog.write("play_sound ignored stale ack id=\(peripheralID.uuidString.prefix(8))")
-        return true
-    }
-
-    private func failPendingSoundWrites(for peripheralID: UUID, reason: String) {
-        staleSoundAcks.removeValue(forKey: peripheralID)
-        guard let queue = pendingSoundAcks.removeValue(forKey: peripheralID) else { return }
-        for pending in queue {
-            pending.timeoutWork.cancel()
-            AgentDebugLog.write(
-                "play_sound write failed \(reason) id=\(peripheralID.uuidString.prefix(8))"
-            )
-            pending.completion(false)
-        }
-    }
-
-    private func failAllPendingSoundWrites() {
-        let ids = Set(pendingSoundAcks.keys).union(staleSoundAcks.keys)
-        for id in ids {
-            failPendingSoundWrites(for: id, reason: "connection cleared")
-        }
+        peripheral.writeValue(data, for: characteristic, type: .withoutResponse)
     }
 
     func sendSoundVolume(_ volume: Int, to peripheralID: UUID? = nil) {
@@ -322,7 +238,7 @@ final class BleCentral: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate
         }
         let data = BleProtocol.playSoundPayload(sound)
         NSLog("BLE play_sound test sound=\(sound) dev=VS-\(deviceID)")
-        peripheral.writeValue(data, for: characteristic, type: .withoutResponse)
+        writeControl(data, peripheral: peripheral, characteristic: characteristic)
         return true
     }
 
@@ -383,6 +299,14 @@ final class BleCentral: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate
 
     var hasConnectedDevice: Bool {
         !connectedDevices.isEmpty
+    }
+
+    var connectedDeviceIDs: [String] {
+        connectedDevices.values.map(\.deviceID).sorted()
+    }
+
+    func peripheralID(for deviceID: String) -> UUID? {
+        connectedDevices.first(where: { $0.value.deviceID == deviceID })?.key
     }
 
     func centralManagerDidUpdateState(_ central: CBCentralManager) {
@@ -489,20 +413,7 @@ final class BleCentral: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate
     }
 
     func peripheral(_ peripheral: CBPeripheral, didWriteValueFor characteristic: CBCharacteristic, error: Error?) {
-        let uuid = characteristic.uuid.uuidString.uppercased()
-        if uuid == BleProtocol.controlUUID {
-            if consumeStaleSoundAck(for: peripheral.identifier) {
-                return
-            }
-            finishSoundWrite(
-                for: peripheral.identifier,
-                delivered: error == nil,
-                reason: error?.localizedDescription ?? "ack",
-                isTimeout: false
-            )
-            return
-        }
-        guard uuid == BleProtocol.otaRXUUID,
+        guard characteristic.uuid.uuidString.uppercased() == BleProtocol.otaRXUUID,
               firmwareUpdateSession?.peripheralID == peripheral.identifier else {
             return
         }
@@ -695,7 +606,6 @@ final class BleCentral: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate
         if firmwareUpdateSession != nil {
             failFirmwareUpdate(FirmwareUpdateError.noConnectedDevice)
         }
-        failAllPendingSoundWrites()
         peripherals.removeAll()
         discoveredDevices.removeAll()
         connectedDevices.removeAll()
@@ -705,7 +615,6 @@ final class BleCentral: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate
     }
 
     private func removePeripheral(_ peripheral: CBPeripheral) {
-        failPendingSoundWrites(for: peripheral.identifier, reason: "disconnected")
         peripherals.removeValue(forKey: peripheral.identifier)
         discoveredDevices.removeValue(forKey: peripheral.identifier)
         connectedDevices.removeValue(forKey: peripheral.identifier)

@@ -398,7 +398,8 @@ static bool app_ui_allows_recording_start(void)
 {
     return s_app_ui_state == APP_UI_STATE_READY ||
            s_app_ui_state == APP_UI_STATE_NOTIFICATION ||
-           s_app_ui_state == APP_UI_STATE_ERROR;
+           s_app_ui_state == APP_UI_STATE_ERROR ||
+           s_app_ui_state == APP_UI_STATE_TASK_RUNNING;
 }
 
 static uint32_t start_recording(void)
@@ -639,6 +640,11 @@ static void apply_app_ui_state(const char *state, const char *text)
         ui_status_set_partial_text("");
         note_activity();
     } else if (strcmp(state, "task_running") == 0) {
+        if (s_recording || s_app_ui_state == APP_UI_STATE_RECORDING ||
+            s_app_ui_state == APP_UI_STATE_TRANSCRIBING) {
+            ESP_LOGI(TAG, "ignore task_running ui_state while recording");
+            return;
+        }
         s_app_ui_state = APP_UI_STATE_TASK_RUNNING;
         ui_status_set_task_running(text);
         note_activity();

@@ -15,12 +15,13 @@
 
 #include "audio_pipeline.h"
 #include "stick_s3_board.h"
+#include "esp_pm.h"
 
 static const char *TAG = "audio_playback";
 
 #define PLAYBACK_SAMPLE_RATE 16000
 #define TONE_BUF_FRAMES     320   /* 20 ms at 16 kHz */
-#define PLAY_TASK_STACK      4096
+#define PLAY_TASK_STACK      8192
 #define PLAY_TASK_PRIO       4
 #define TONE_AMPLITUDE       12000 /* ~-3 dBFS for 16-bit PCM */
 #define PLAYBACK_VOLUME_DEFAULT 70
@@ -33,6 +34,7 @@ static bool s_initialized;
 static volatile bool s_busy;
 static int s_volume = PLAYBACK_VOLUME_DEFAULT;
 static TaskHandle_t s_play_task;
+static esp_pm_lock_handle_t s_play_pm_lock;
 
 /* --- tone definitions --------------------------------------------------- */
 
@@ -74,23 +76,36 @@ static const sound_def_t s_sounds[] = {
 
 /* --- play task ---------------------------------------------------------- */
 
+static void playback_abort(bool pm_held)
+{
+    if (pm_held && s_play_pm_lock) {
+        (void)esp_pm_lock_release(s_play_pm_lock);
+    }
+    s_busy = false;
+    s_play_task = NULL;
+    vTaskDelete(NULL);
+}
+
 static void play_task(void *arg)
 {
     const audio_playback_sound_t sound = (audio_playback_sound_t)(uintptr_t)arg;
     const sound_def_t *def = &s_sounds[sound];
     bool speaker_enabled = false;
+    bool pm_held = false;
 
-    /* Wait for any active recording session to finish. */
+    if (s_play_pm_lock && esp_pm_lock_acquire(s_play_pm_lock) == ESP_OK) {
+        pm_held = true;
+    }
+
+    /* Wait until recording has both stopped and released I2S_NUM_1. */
     int wait_ms = 0;
-    while (audio_pipeline_is_running() && wait_ms < 3000) {
+    while ((audio_pipeline_is_running() || !audio_pipeline_i2s_released()) && wait_ms < 3000) {
         vTaskDelay(pdMS_TO_TICKS(50));
         wait_ms += 50;
     }
-    if (audio_pipeline_is_running()) {
-        ESP_LOGW(TAG, "audio pipeline still running after %d ms, skip playback", wait_ms);
-        s_busy = false;
-        s_play_task = NULL;
-        vTaskDelete(NULL);
+    if (audio_pipeline_is_running() || !audio_pipeline_i2s_released()) {
+        ESP_LOGW(TAG, "audio pipeline still occupying I2S after %d ms, skip playback", wait_ms);
+        playback_abort(pm_held);
         return;
     }
 
@@ -102,9 +117,7 @@ static void play_task(void *arg)
     esp_err_t err = i2s_new_channel(&chan_cfg, &tx_handle, NULL);
     if (err != ESP_OK) {
         ESP_LOGE(TAG, "create i2s tx channel: %s", esp_err_to_name(err));
-        s_busy = false;
-        s_play_task = NULL;
-        vTaskDelete(NULL);
+        playback_abort(pm_held);
         return;
     }
 
@@ -131,18 +144,14 @@ static void play_task(void *arg)
     if (err != ESP_OK) {
         ESP_LOGE(TAG, "init i2s tx std mode: %s", esp_err_to_name(err));
         i2s_del_channel(tx_handle);
-        s_busy = false;
-        s_play_task = NULL;
-        vTaskDelete(NULL);
+        playback_abort(pm_held);
         return;
     }
     err = i2s_channel_enable(tx_handle);
     if (err != ESP_OK) {
         ESP_LOGE(TAG, "enable i2s tx: %s", esp_err_to_name(err));
         i2s_del_channel(tx_handle);
-        s_busy = false;
-        s_play_task = NULL;
-        vTaskDelete(NULL);
+        playback_abort(pm_held);
         return;
     }
 
@@ -152,9 +161,7 @@ static void play_task(void *arg)
         ESP_LOGE(TAG, "i2c bus unavailable");
         i2s_channel_disable(tx_handle);
         i2s_del_channel(tx_handle);
-        s_busy = false;
-        s_play_task = NULL;
-        vTaskDelete(NULL);
+        playback_abort(pm_held);
         return;
     }
 
@@ -322,6 +329,10 @@ cleanup_i2s:
         (void)stick_s3_board_speaker_enable(false);
     }
 
+    if (pm_held && s_play_pm_lock) {
+        (void)esp_pm_lock_release(s_play_pm_lock);
+    }
+
     s_busy = false;
     s_play_task = NULL;
     vTaskDelete(NULL);
@@ -345,6 +356,10 @@ esp_err_t audio_playback_init(void)
         nvs_close(nvs);
     }
     s_initialized = true;
+    if (esp_pm_lock_create(ESP_PM_NO_LIGHT_SLEEP, 0, "playback", &s_play_pm_lock) != ESP_OK) {
+        ESP_LOGW(TAG, "playback pm lock unavailable");
+        s_play_pm_lock = NULL;
+    }
     ESP_LOGI(TAG, "audio playback ready volume=%d", s_volume);
     return ESP_OK;
 }

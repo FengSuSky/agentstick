@@ -437,4 +437,33 @@ expect(
     "Grouping an empty list should yield two empty groups"
 )
 
+expect(
+    AgentTaskState.running.shouldDriveDeviceUI(outputTargetRawValue: "focused_app") == false,
+    "Background running status must not lock the stick in Text Paste mode"
+)
+expect(
+    AgentTaskState.running.shouldDriveDeviceUI(outputTargetRawValue: "agent_cli") == true,
+    "Agent Run should still show a live task on the stick"
+)
+expect(
+    AgentTaskState.completed.shouldDriveDeviceUI(outputTargetRawValue: "focused_app") == true,
+    "Completion alerts should still reach the stick in Text Paste mode"
+)
+expect(
+    AgentTaskState.failed.shouldDriveDeviceUI(outputTargetRawValue: "focused_app") == true,
+    "Failure alerts should still reach the stick in Text Paste mode"
+)
+expect(
+    AgentTaskState.needsInput.shouldDriveDeviceUI(outputTargetRawValue: "focused_app") == true,
+    "Input requests should still occupy the stick in every output mode"
+)
+expect(
+    AgentTaskState.waitingForApproval.shouldDriveDeviceUI(outputTargetRawValue: "subtitle") == true,
+    "Approval requests should still occupy the stick in every output mode"
+)
+expect(
+    AgentTaskState.idle.shouldDriveDeviceUI(outputTargetRawValue: "agent_cli") == false,
+    "Idle snapshots should not drive device UI"
+)
+
 print("AgentStickCoreTests passed")

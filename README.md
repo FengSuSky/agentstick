@@ -31,7 +31,7 @@ This repository is still in the migration and adaptation stage from VoiceStick. 
 - Button-triggered recording with Opus-encoded microphone audio over BLE.
 - A macOS desktop app that receives audio, calls ASR, and displays recognized text.
 - Text insertion into the focused desktop app.
-- Direct dispatch of recognized tasks to Claude Code or Codex CLI, with local result capture.
+- Direct dispatch of recognized tasks to Claude Code, Codex CLI, or WorkBuddy, with local result capture.
 - Device status updates and sound alerts for running, completed, failed, and needs-input agent states.
 - A working adaptation for the Lichuang ESP32-S3 development board.
 - Verified Volcengine ASR configuration and local macOS packaging flow.
@@ -56,6 +56,10 @@ Task History also handles agent-initiated confirmations (such as commit, push, o
 Within the same agent and project folder, Agent Run uses follow-up cues, recency, and task similarity to decide whether to create or resume a Claude session or Codex thread. Start with “new conversation” to force a new session or “continue conversation” to force the most recent one. Clearing history also removes the local continuation index.
 
 With Long-term Memory enabled, AgentStick stores stable preferences and project context from explicit phrases such as “remember,” “from now on,” “I prefer,” or “for this project.” Relevant memories are supplied to later Claude/Codex tasks. Memory can be viewed or cleared in Settings; API keys, passwords, and complete transcripts are not stored automatically.
+
+### Dispatching tasks to WorkBuddy
+
+AgentStick can also route spoken tasks to WorkBuddy through the open platform. Developer credentials are built in. Choose WorkBuddy in Settings, save, then click “Connect WorkBuddy” to authorize your account; users do not need to register an open-platform application. Tasks then run in the WorkBuddy session signed in on this Mac. Tool approvals and questions appear in Task History, and the device is alerted when the work finishes. The hardware-integration application on the open platform must be approved before the credentials can be used; see `docs/workbuddy-integration.md` for scopes, callback URL, and review notes.
 
 Results are saved under `~/Library/Application Support/AgentStick/Tasks/`. The app discovers common Homebrew, NVM, Volta, and Bun installations, plus the Codex CLI bundled with Codex.app or ChatGPT.app. Custom commands remain configurable through `[agents.*]` in `config.toml`.
 
